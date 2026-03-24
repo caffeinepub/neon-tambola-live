@@ -1,0 +1,279 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Fonts ─────────────────────────────────────────────────────── */
+@font-face {
+  font-family: "Bricolage Grotesque";
+  src: url("/assets/fonts/BricolageGrotesque.woff2") format("woff2");
+  font-weight: 200 800;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Plus Jakarta Sans";
+  src: url("/assets/fonts/PlusJakartaSans.woff2") format("woff2");
+  font-weight: 300 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/assets/fonts/JetBrainsMono.woff2") format("woff2");
+  font-weight: 300 700;
+  font-display: swap;
+}
+
+@layer base {
+  :root {
+    --radius: 0.75rem;
+
+    /* Neon dark palette */
+    --background: 0.08 0.02 265;
+    --foreground: 0.96 0.01 260;
+    --card: 0.12 0.02 265;
+    --card-foreground: 0.96 0.01 260;
+    --popover: 0.13 0.025 265;
+    --popover-foreground: 0.96 0.01 260;
+
+    --primary: 0.65 0.28 300;
+    --primary-foreground: 0.98 0.01 260;
+    --secondary: 0.18 0.03 265;
+    --secondary-foreground: 0.85 0.05 265;
+
+    --muted: 0.16 0.025 265;
+    --muted-foreground: 0.55 0.05 265;
+
+    --accent: 0.85 0.18 195;
+    --accent-foreground: 0.06 0.02 265;
+
+    --destructive: 0.65 0.22 25;
+    --destructive-foreground: 0.98 0.01 260;
+
+    --border: 0.22 0.04 270;
+    --input: 0.18 0.03 265;
+    --ring: 0.65 0.28 300;
+
+    --success: 0.75 0.2 145;
+    --warning: 0.8 0.18 75;
+
+    --chart-1: 0.65 0.28 300;
+    --chart-2: 0.85 0.18 195;
+    --chart-3: 0.75 0.2 145;
+    --chart-4: 0.8 0.18 75;
+    --chart-5: 0.65 0.22 25;
+
+    --sidebar: 0.1 0.02 265;
+    --sidebar-foreground: 0.96 0.01 260;
+    --sidebar-primary: 0.65 0.28 300;
+    --sidebar-primary-foreground: 0.98 0.01 260;
+    --sidebar-accent: 0.85 0.18 195;
+    --sidebar-accent-foreground: 0.06 0.02 265;
+    --sidebar-border: 0.22 0.04 270;
+    --sidebar-ring: 0.65 0.28 300;
+  }
+
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-body;
+    background-image: radial-gradient(
+        ellipse 80% 50% at 50% -20%,
+        oklch(0.65 0.28 300 / 0.12) 0%,
+        transparent 60%
+      ),
+      radial-gradient(
+        ellipse 50% 30% at 80% 80%,
+        oklch(0.85 0.18 195 / 0.07) 0%,
+        transparent 50%
+      );
+    background-attachment: fixed;
+  }
+}
+
+/* ─── Keyframes ─────────────────────────────────────────────────── */
+@keyframes neon-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 10px oklch(0.65 0.28 300 / 0.5), 0 0 30px
+      oklch(0.65 0.28 300 / 0.3);
+  }
+  50% {
+    box-shadow: 0 0 20px oklch(0.65 0.28 300 / 0.8), 0 0 60px
+      oklch(0.65 0.28 300 / 0.5);
+  }
+}
+@keyframes cyan-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 15px oklch(0.85 0.18 195 / 0.6), 0 0 40px
+      oklch(0.85 0.18 195 / 0.4);
+  }
+  50% {
+    box-shadow: 0 0 30px oklch(0.85 0.18 195 / 1), 0 0 80px
+      oklch(0.85 0.18 195 / 0.6);
+  }
+}
+@keyframes number-flash {
+  0% {
+    transform: scale(1);
+  }
+  30% {
+    transform: scale(1.18);
+  }
+  60% {
+    transform: scale(0.97);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@keyframes marquee {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(-100%);
+  }
+}
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+@keyframes shimmer {
+  0% {
+    background-position: -200% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
+}
+@keyframes confetti-fall {
+  0% {
+    transform: translateY(-10px) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100vh) rotate(720deg);
+    opacity: 0;
+  }
+}
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes glow-ring {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@keyframes bg-drift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* ─── Utilities ─────────────────────────────────────────────────── */
+@layer utilities {
+  .animate-neon-pulse {
+    animation: neon-pulse 2s ease-in-out infinite;
+  }
+  .animate-cyan-pulse {
+    animation: cyan-pulse 2s ease-in-out infinite;
+  }
+  .animate-number-flash {
+    animation: number-flash 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+  }
+  .animate-marquee {
+    animation: marquee 25s linear infinite;
+  }
+  .animate-float {
+    animation: float 3s ease-in-out infinite;
+  }
+  .animate-shimmer {
+    animation: shimmer 3s linear infinite;
+  }
+  .animate-slide-up {
+    animation: slide-up 0.4s ease-out;
+  }
+  .animate-glow-ring {
+    animation: glow-ring 2s ease-in-out infinite;
+  }
+  .animate-bg-drift {
+    animation: bg-drift 8s ease infinite;
+  }
+
+  .glass {
+    backdrop-filter: blur(12px);
+    background-color: oklch(1 0 0 / 0.05);
+    border: 1px solid oklch(1 0 0 / 0.1);
+  }
+  .glass-heavy {
+    backdrop-filter: blur(20px);
+    background-color: oklch(1 0 0 / 0.08);
+    border: 1px solid oklch(1 0 0 / 0.15);
+  }
+  .neon-text-purple {
+    text-shadow: 0 0 10px oklch(0.65 0.28 300 / 0.8), 0 0 30px
+      oklch(0.65 0.28 300 / 0.5);
+  }
+  .neon-text-cyan {
+    text-shadow: 0 0 10px oklch(0.85 0.18 195 / 0.8), 0 0 30px
+      oklch(0.85 0.18 195 / 0.5);
+  }
+  .neon-text-green {
+    text-shadow: 0 0 10px oklch(0.75 0.2 145 / 0.8), 0 0 30px
+      oklch(0.75 0.2 145 / 0.5);
+  }
+  .gradient-shimmer {
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      oklch(1 0 0 / 0.1) 50%,
+      transparent 100%
+    );
+    background-size: 200% auto;
+  }
+}
+
+/* ─── Scrollbar ──────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: oklch(0.1 0.02 265);
+}
+::-webkit-scrollbar-thumb {
+  background: oklch(0.3 0.06 270);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.65 0.28 300 / 0.6);
+}
+
+/* ─── datetime-local input dark styling ─────────────────────────── */
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) opacity(0.6);
+  cursor: pointer;
+}
