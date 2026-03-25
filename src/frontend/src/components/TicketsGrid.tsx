@@ -71,7 +71,7 @@ export default function TicketsGrid({
     }, 1500);
   };
 
-  const isSearchResult = searchOnly && search.trim() && filtered.length > 0;
+  const isSearchResult = search.trim() !== "" && filtered.length > 0;
 
   return (
     <div className="w-full">

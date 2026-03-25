@@ -4,6 +4,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useState } from "react";
 import type { GameState } from "../utils/gameStorage";
 import type { Winner } from "../utils/winDetector";
+import ThemeManager from "./ThemeManager";
 
 interface Props {
   state: GameState;
@@ -100,7 +101,7 @@ export default function AgentPanel({
   const [editNames, setEditNames] = useState(false);
   const [nameEdits, setNameEdits] = useState<Record<number, string>>({});
   const [activeTab, setActiveTab] = useState<
-    "control" | "tickets" | "bookings" | "winners"
+    "control" | "tickets" | "bookings" | "winners" | "themes"
   >("control");
   // Per-ticket edit mode set
   const [editingTickets, setEditingTickets] = useState<Set<number>>(new Set());
@@ -186,6 +187,7 @@ export default function AgentPanel({
     { id: "tickets", label: "Tickets" },
     { id: "bookings", label: "Bookings", badge: pendingCount },
     { id: "winners", label: "Winners" },
+    { id: "themes", label: "Themes" },
   ] as const;
 
   return (
@@ -818,6 +820,8 @@ export default function AgentPanel({
             )}
           </div>
         )}
+
+        {activeTab === "themes" && <ThemeManager />}
       </div>
     </div>
   );

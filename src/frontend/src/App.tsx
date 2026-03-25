@@ -6,6 +6,7 @@ import AgentPanel from "./components/AgentPanel";
 import CallingDisplay from "./components/CallingDisplay";
 import Confetti from "./components/Confetti";
 import NumberBoard from "./components/NumberBoard";
+import { applyTheme } from "./components/ThemeManager";
 import TicketsGrid from "./components/TicketsGrid";
 import WinnerBoard, { WinnerMarquee } from "./components/WinnerBoard";
 import { useGameState } from "./hooks/useGameState";
@@ -86,6 +87,70 @@ export default function App() {
   // Force dark mode
   React.useEffect(() => {
     document.documentElement.classList.add("dark");
+  }, []);
+
+  // Load saved theme on mount
+  React.useEffect(() => {
+    const activeId = localStorage.getItem("tambola_active_theme");
+    if (activeId) {
+      const presetThemes = JSON.parse(
+        localStorage.getItem("_tambola_preset_check") || "null",
+      );
+      const savedThemes = JSON.parse(
+        localStorage.getItem("tambola_themes") || "[]",
+      );
+      const allThemes = [
+        {
+          id: "preset-neon-dark",
+          bgType: "gradient",
+          bgColor1: "#0a0a1a",
+          bgColor2: "#1a0a2e",
+          ticketBg: "rgba(30,10,60,0.7)",
+          ticketBorder: "rgba(139,92,246,0.4)",
+          name: "",
+        },
+        {
+          id: "preset-ocean-blue",
+          bgType: "gradient",
+          bgColor1: "#020c1b",
+          bgColor2: "#0a2744",
+          ticketBg: "rgba(5,30,70,0.75)",
+          ticketBorder: "rgba(0,200,255,0.4)",
+          name: "",
+        },
+        {
+          id: "preset-fire-red",
+          bgType: "gradient",
+          bgColor1: "#1a0505",
+          bgColor2: "#2e0a0a",
+          ticketBg: "rgba(60,10,10,0.75)",
+          ticketBorder: "rgba(239,68,68,0.5)",
+          name: "",
+        },
+        {
+          id: "preset-forest-green",
+          bgType: "gradient",
+          bgColor1: "#051a0a",
+          bgColor2: "#0a2e14",
+          ticketBg: "rgba(5,50,20,0.75)",
+          ticketBorder: "rgba(34,197,94,0.4)",
+          name: "",
+        },
+        {
+          id: "preset-royal-gold",
+          bgType: "gradient",
+          bgColor1: "#1a1400",
+          bgColor2: "#2e2000",
+          ticketBg: "rgba(50,35,0,0.75)",
+          ticketBorder: "rgba(234,179,8,0.5)",
+          name: "",
+        },
+        ...savedThemes,
+      ];
+      void presetThemes;
+      const theme = allThemes.find((t: any) => t.id === activeId);
+      if (theme) applyTheme(theme as any);
+    }
   }, []);
 
   const {

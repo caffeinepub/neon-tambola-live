@@ -91,6 +91,52 @@ export const TAMBOLA_CALLS: Record<number, string> = {
   90: "Top of the Shop",
 };
 
+// Pick the best available voice — prefer Google/Microsoft neural voices
+let _bestVoice: SpeechSynthesisVoice | null = null;
+
+function pickBestVoice(): SpeechSynthesisVoice | null {
+  if (!window.speechSynthesis) return null;
+  const voices = window.speechSynthesis.getVoices();
+  if (!voices.length) return null;
+
+  // Priority list: prefer Google/Microsoft neural English voices
+  const priority = [
+    (v: SpeechSynthesisVoice) => /google.*english/i.test(v.name),
+    (v: SpeechSynthesisVoice) => /google/i.test(v.name) && /en/i.test(v.lang),
+    (v: SpeechSynthesisVoice) =>
+      /microsoft.*natural/i.test(v.name) && /en/i.test(v.lang),
+    (v: SpeechSynthesisVoice) =>
+      /microsoft/i.test(v.name) && /en/i.test(v.lang),
+    (v: SpeechSynthesisVoice) =>
+      /en-GB/i.test(v.lang) && !/espeak/i.test(v.name),
+    (v: SpeechSynthesisVoice) =>
+      /en-IN/i.test(v.lang) && !/espeak/i.test(v.name),
+    (v: SpeechSynthesisVoice) =>
+      /en-US/i.test(v.lang) && !/espeak/i.test(v.name),
+    (v: SpeechSynthesisVoice) => /en/i.test(v.lang) && !/espeak/i.test(v.name),
+    (v: SpeechSynthesisVoice) => /en/i.test(v.lang),
+  ];
+
+  for (const test of priority) {
+    const match = voices.find(test);
+    if (match) return match;
+  }
+  return voices[0];
+}
+
+function getBestVoice(): SpeechSynthesisVoice | null {
+  if (_bestVoice) return _bestVoice;
+  _bestVoice = pickBestVoice();
+  return _bestVoice;
+}
+
+// Voices may load asynchronously — refresh cache when they do
+if (typeof window !== "undefined" && window.speechSynthesis) {
+  window.speechSynthesis.onvoiceschanged = () => {
+    _bestVoice = pickBestVoice();
+  };
+}
+
 export function playCallSound() {
   try {
     const ctx = new (
@@ -108,6 +154,34 @@ export function playCallSound() {
       osc.start(ctx.currentTime);
       osc.stop(ctx.currentTime + 0.8);
     });
+  } catch {}
+}
+
+export function speakNumber(num: number) {
+  try {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+
+    const phrase = TAMBOLA_CALLS[num] || "";
+    // Format: say the number twice for clarity, then the phrase
+    const text = phrase
+      ? `Number ${num}. ${num}. ${phrase}!`
+      : `Number ${num}. ${num}.`;
+
+    const utterance = new SpeechSynthesisUtterance(text);
+
+    const voice = getBestVoice();
+    if (voice) utterance.voice = voice;
+
+    // Slower, clearer, authoritative — like a real Tambola caller
+    utterance.rate = 0.82;
+    utterance.pitch = 1.05;
+    utterance.volume = 1.0;
+
+    // Delay slightly so chime plays first
+    setTimeout(() => {
+      window.speechSynthesis.speak(utterance);
+    }, 350);
   } catch {}
 }
 

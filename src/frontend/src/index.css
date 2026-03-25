@@ -75,7 +75,8 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground font-body;
+    @apply text-foreground font-body;
+    background: var(--theme-bg, oklch(var(--background))) !important;
     background-image: radial-gradient(
         ellipse 80% 50% at 50% -20%,
         oklch(0.65 0.28 300 / 0.12) 0%,

@@ -7,8 +7,12 @@ import {
   loadState,
   saveState,
 } from "../utils/gameStorage";
-import { playCallSound, playWinnerSound } from "../utils/soundEffects";
-import { generateTickets } from "../utils/ticketGenerator";
+import {
+  playCallSound,
+  playWinnerSound,
+  speakNumber,
+} from "../utils/soundEffects";
+import { countTicketNumbers, generateTickets } from "../utils/ticketGenerator";
 import { type Winner, detectWins } from "../utils/winDetector";
 
 export function useGameState() {
@@ -50,6 +54,7 @@ export function useGameState() {
     const num = uncalled[Math.floor(Math.random() * uncalled.length)];
     const calledNumbers = [...s.calledNumbers, num];
     playCallSound();
+    speakNumber(num);
     const newWins = detectWins(s.tickets, calledNumbers, s.winners);
     if (newWins.length > 0) playWinnerSound();
     const winners = [...s.winners, ...newWins];
@@ -76,6 +81,7 @@ export function useGameState() {
       if (prev.calledNumbers.includes(n)) return prev;
       const calledNumbers = [...prev.calledNumbers, n];
       playCallSound();
+      speakNumber(n);
       const newWins = detectWins(prev.tickets, calledNumbers, prev.winners);
       if (newWins.length > 0) playWinnerSound();
       const winners = [...prev.winners, ...newWins];
@@ -135,6 +141,21 @@ export function useGameState() {
       setState((prev) => {
         const tickets = prev.tickets.map((t) => {
           if (t.id !== ticketId) return t;
+
+          // If setting a number (not clearing), enforce limits:
+          // - row must have < 5 numbers already
+          // - ticket must have < 15 numbers already
+          if (value !== null) {
+            const currentRowNums = t.grid[row].filter(
+              (c, ci) => c !== null && ci !== col,
+            ).length;
+            if (currentRowNums >= 5) return t; // row already full
+
+            const currentTotal = countTicketNumbers(t.grid);
+            const cellWasNull = t.grid[row][col] === null;
+            if (cellWasNull && currentTotal >= 15) return t; // ticket already full
+          }
+
           const grid = t.grid.map((r, ri) =>
             ri === row ? r.map((c, ci) => (ci === col ? value : c)) : r,
           );

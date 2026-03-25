@@ -40,190 +40,215 @@ export default function TicketCard({
   const isBooked =
     ticket.playerName && !ticket.playerName.startsWith("Player ");
 
-  if (large) {
-    return (
-      <div
-        className={`glass rounded-2xl p-4 sm:p-6 transition-all duration-300 border ${
-          ticketWins.length > 0
-            ? "border-accent/50 shadow-neon-cyan"
-            : "border-primary/20"
-        }`}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between mb-4 gap-2">
-          <div className="flex items-center gap-3">
-            <span className="text-xl font-mono font-black text-primary neon-text-purple">
-              #{ticket.id}
-            </span>
-            {ticketWins.length > 0 && (
-              <span className="text-sm font-mono font-bold text-accent border border-accent/40 rounded-full px-2 py-0.5">
-                🏆 Winner
-              </span>
-            )}
-          </div>
-          <div className="text-right">
-            {showBookingBadge ? (
-              <span
-                className={`text-xs font-semibold px-3 py-1 rounded-full border ${
-                  isPending
-                    ? "text-yellow-400 border-yellow-400/40 bg-yellow-400/10"
-                    : isBooked
-                      ? "text-success border-success/30 bg-success/10"
-                      : "text-muted-foreground border-border"
-                }`}
-              >
-                {isPending
-                  ? "⏳ Pending"
-                  : isBooked
-                    ? ticket.playerName
-                    : "UNBOOKED"}
-              </span>
-            ) : (
-              <span className="text-sm font-semibold text-foreground">
-                {ticket.playerName}
-              </span>
-            )}
-          </div>
-        </div>
+  const ticketBg = "var(--theme-ticket-bg, #FFE135)";
+  const isWinner = ticketWins.length > 0;
 
-        {/* Large grid */}
-        <div className="space-y-1.5">
-          {ticket.grid.map((row, ri) => (
-            <div
-              key={ROW_KEYS[ri]}
-              className="grid grid-cols-9 gap-1 sm:gap-1.5"
-            >
-              {row.map((cell, ci) => {
-                const isCurrent = cell === currentNumber;
-                const isCalled = cell !== null && calledSet.has(cell);
-                return (
-                  <div
-                    key={COL_KEYS[ci]}
-                    className={`flex items-center justify-center rounded-lg text-sm sm:text-base font-mono font-bold
-                      h-8 sm:h-11 md:h-12 transition-all duration-300
-                      ${
-                        cell === null
-                          ? "bg-black/30"
-                          : isCurrent
-                            ? "bg-accent text-accent-foreground shadow-neon-cyan scale-105 animate-number-flash"
-                            : isCalled
-                              ? "bg-primary/70 text-white shadow-neon-purple"
-                              : "bg-white/8 text-foreground"
-                      }`}
-                  >
-                    {cell ?? ""}
-                  </div>
-                );
-              })}
-            </div>
-          ))}
-        </div>
+  const cellH = large ? 44 : 22;
+  const fontSize = large ? 15 : 9;
 
-        {/* Win types */}
-        {ticketWins.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {ticketWins.map((w) => (
-              <span
-                key={w.winType}
-                className="text-xs font-mono font-bold text-accent border border-accent/30 bg-accent/10 px-2 py-0.5 rounded-full"
-              >
-                {w.winType}
-              </span>
-            ))}
-          </div>
-        )}
-
-        {showBookingBadge && !isBooked && !isPending && onBook && (
-          <button
-            type="button"
-            onClick={onBook}
-            className="mt-3 w-full text-sm font-semibold py-2 rounded-xl border border-primary/30 text-primary hover:bg-primary/10 transition-all duration-200"
-            data-ocid="tickets.open_modal_button"
-          >
-            + Request Booking
-          </button>
-        )}
-      </div>
-    );
-  }
-
-  return (
+  const headerSection = (
     <div
-      className={`glass rounded-xl p-3 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-card-glow ${
-        ticketWins.length > 0 ? "border-accent/40" : ""
-      }`}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        padding: large ? "6px 10px 4px" : "3px 6px 2px",
+        borderBottom: "1px solid rgba(0,0,0,0.25)",
+      }}
     >
-      <div className="flex items-center justify-between mb-2 gap-1">
-        <span className="text-xs font-mono font-bold text-primary/80">
-          #{ticket.id}
-        </span>
-        <div className="flex-1 min-w-0 text-center">
-          {showBookingBadge ? (
-            <span
-              className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
-                isPending
-                  ? "text-yellow-400 border-yellow-400/40 bg-yellow-400/10"
-                  : isBooked
-                    ? "text-success border-success/30 bg-success/10"
-                    : "text-muted-foreground border-border"
-              }`}
-            >
-              {isPending
-                ? "⏳ Pending"
-                : isBooked
-                  ? ticket.playerName
-                  : "UNBOOKED"}
-            </span>
-          ) : (
-            <span className="text-[10px] text-muted-foreground truncate max-w-[90px] block mx-auto">
-              {ticket.playerName}
-            </span>
-          )}
-        </div>
-        {ticketWins.length > 0 && (
-          <span className="text-[9px] font-mono font-bold text-accent border border-accent/40 rounded-full px-1.5 py-0.5">
-            🏆
+      <span
+        style={{
+          fontSize: large ? 11 : 8,
+          fontWeight: 700,
+          color: "#444",
+          letterSpacing: 0.5,
+          fontFamily: "monospace",
+        }}
+      >
+        Neon Tambola
+      </span>
+      <div
+        style={{ display: "flex", alignItems: "center", gap: large ? 8 : 4 }}
+      >
+        {isWinner && (
+          <span
+            style={{
+              fontSize: large ? 10 : 7,
+              fontWeight: 700,
+              color: "#b45309",
+            }}
+          >
+            🏆 Winner
           </span>
         )}
+        <span
+          style={{
+            fontSize: large ? 11 : 8,
+            fontWeight: 800,
+            color: "#222",
+            fontFamily: "monospace",
+          }}
+        >
+          #{ticket.id}
+        </span>
       </div>
+    </div>
+  );
 
-      <div className="space-y-0.5">
+  const playerSection = (
+    <div
+      style={{
+        textAlign: "center",
+        padding: large ? "3px 8px 4px" : "2px 4px",
+        borderBottom: "1px solid rgba(0,0,0,0.18)",
+      }}
+    >
+      {showBookingBadge ? (
+        <span
+          style={{
+            fontSize: large ? 11 : 7.5,
+            fontWeight: 700,
+            color: isPending ? "#b45309" : isBooked ? "#166534" : "#777",
+          }}
+        >
+          {isPending ? "⏳ Pending" : isBooked ? ticket.playerName : "UNBOOKED"}
+        </span>
+      ) : (
+        <span
+          style={{
+            fontSize: large ? 11 : 7.5,
+            fontWeight: 600,
+            color: "#555",
+          }}
+        >
+          {ticket.playerName}
+        </span>
+      )}
+    </div>
+  );
+
+  const grid = (
+    <table
+      style={{
+        borderCollapse: "collapse",
+        width: "100%",
+        tableLayout: "fixed",
+      }}
+    >
+      <tbody>
         {ticket.grid.map((row, ri) => (
-          <div key={ROW_KEYS[ri]} className="grid grid-cols-9 gap-0.5">
+          <tr key={ROW_KEYS[ri]}>
             {row.map((cell, ci) => {
               const isCurrent = cell === currentNumber;
               const isCalled = cell !== null && calledSet.has(cell);
+              let cellBg = "transparent";
+              let color = "#111";
+              if (cell !== null) {
+                if (isCurrent) {
+                  cellBg = "#7c3aed";
+                  color = "#fff";
+                } else if (isCalled) {
+                  cellBg = "#dc2626";
+                  color = "#fff";
+                }
+              }
               return (
-                <div
+                <td
                   key={COL_KEYS[ci]}
-                  className={`flex items-center justify-center rounded text-[8px] sm:text-[10px] font-mono font-semibold h-5 sm:h-6 transition-all duration-300 ${
-                    cell === null
-                      ? "bg-black/20"
-                      : isCurrent
-                        ? "bg-accent text-accent-foreground shadow-neon-cyan scale-110"
-                        : isCalled
-                          ? "bg-primary/70 text-white shadow-neon-purple"
-                          : "bg-white/5 text-muted-foreground"
-                  }`}
+                  style={{
+                    border: "1.5px solid rgba(0,0,0,0.35)",
+                    height: cellH,
+                    textAlign: "center",
+                    verticalAlign: "middle",
+                    fontSize,
+                    fontWeight: 800,
+                    color,
+                    background: cellBg,
+                    fontFamily: "monospace",
+                    transition: "background 0.2s",
+                    padding: 0,
+                  }}
                 >
                   {cell ?? ""}
-                </div>
+                </td>
               );
             })}
-          </div>
+          </tr>
         ))}
-      </div>
+      </tbody>
+    </table>
+  );
 
-      {showBookingBadge && !isBooked && !isPending && onBook && (
-        <button
-          type="button"
-          onClick={onBook}
-          className="mt-2 w-full text-[10px] font-semibold py-1 rounded-lg border border-primary/30 text-primary hover:bg-primary/10 transition-all duration-200"
-          data-ocid="tickets.open_modal_button"
+  const winBadges = isWinner && large && (
+    <div
+      style={{
+        padding: "4px 8px 6px",
+        display: "flex",
+        flexWrap: "wrap",
+        gap: 4,
+      }}
+    >
+      {ticketWins.map((w) => (
+        <span
+          key={w.winType}
+          style={{
+            fontSize: 10,
+            fontWeight: 700,
+            background: "#fef3c7",
+            color: "#92400e",
+            border: "1px solid #d97706",
+            borderRadius: 99,
+            padding: "1px 8px",
+          }}
         >
-          + Request Booking
-        </button>
-      )}
+          {w.winType}
+        </span>
+      ))}
+    </div>
+  );
+
+  const bookBtn = showBookingBadge && !isBooked && !isPending && onBook && (
+    <div style={{ padding: large ? "6px 8px 8px" : "3px 4px 4px" }}>
+      <button
+        type="button"
+        onClick={onBook}
+        data-ocid="tickets.open_modal_button"
+        style={{
+          width: "100%",
+          fontSize: large ? 12 : 8,
+          fontWeight: 700,
+          padding: large ? "6px 0" : "3px 0",
+          borderRadius: 6,
+          border: "1.5px solid rgba(0,0,0,0.3)",
+          background: "rgba(0,0,0,0.08)",
+          color: "#333",
+          cursor: "pointer",
+        }}
+      >
+        + Request Booking
+      </button>
+    </div>
+  );
+
+  return (
+    <div
+      style={{
+        background: ticketBg,
+        borderRadius: 10,
+        overflow: "hidden",
+        border: isWinner ? "2px solid #7c3aed" : "1.5px solid rgba(0,0,0,0.25)",
+        boxShadow: isWinner
+          ? "0 4px 20px rgba(124,58,237,0.35)"
+          : "0 2px 8px rgba(0,0,0,0.18)",
+        display: "inline-block",
+        width: "100%",
+      }}
+    >
+      {headerSection}
+      {playerSection}
+      {grid}
+      {winBadges}
+      {bookBtn}
     </div>
   );
 }

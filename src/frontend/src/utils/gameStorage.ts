@@ -1,4 +1,5 @@
 import type { Ticket } from "./ticketGenerator";
+import { isValidTicket, repairTicket } from "./ticketGenerator";
 import type { Winner } from "./winDetector";
 
 export type GamePhase = "idle" | "booking" | "preview" | "active" | "ended";
@@ -40,7 +41,17 @@ export const defaultState: GameState = {
 export function loadState(): GameState {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return { ...defaultState, ...JSON.parse(raw) };
+    if (raw) {
+      const parsed = JSON.parse(raw) as GameState;
+      const state = { ...defaultState, ...parsed };
+      // Repair any tickets that have > 15 numbers (legacy bug fix)
+      if (state.tickets.length > 0) {
+        state.tickets = state.tickets.map((t) =>
+          isValidTicket(t.grid) ? t : repairTicket(t),
+        );
+      }
+      return state;
+    }
   } catch {}
   return { ...defaultState };
 }
