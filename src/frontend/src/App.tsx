@@ -84,22 +84,17 @@ function Sep() {
 
 // ─── App ──────────────────────────────────────────────────────────
 export default function App() {
-  // Force dark mode
   React.useEffect(() => {
     document.documentElement.classList.add("dark");
   }, []);
 
-  // Load saved theme on mount
   React.useEffect(() => {
     const activeId = localStorage.getItem("tambola_active_theme");
     if (activeId) {
-      const presetThemes = JSON.parse(
-        localStorage.getItem("_tambola_preset_check") || "null",
-      );
       const savedThemes = JSON.parse(
         localStorage.getItem("tambola_themes") || "[]",
       );
-      const allThemes = [
+      const presets = [
         {
           id: "preset-neon-dark",
           bgType: "gradient",
@@ -107,7 +102,6 @@ export default function App() {
           bgColor2: "#1a0a2e",
           ticketBg: "rgba(30,10,60,0.7)",
           ticketBorder: "rgba(139,92,246,0.4)",
-          name: "",
         },
         {
           id: "preset-ocean-blue",
@@ -116,7 +110,6 @@ export default function App() {
           bgColor2: "#0a2744",
           ticketBg: "rgba(5,30,70,0.75)",
           ticketBorder: "rgba(0,200,255,0.4)",
-          name: "",
         },
         {
           id: "preset-fire-red",
@@ -125,16 +118,6 @@ export default function App() {
           bgColor2: "#2e0a0a",
           ticketBg: "rgba(60,10,10,0.75)",
           ticketBorder: "rgba(239,68,68,0.5)",
-          name: "",
-        },
-        {
-          id: "preset-forest-green",
-          bgType: "gradient",
-          bgColor1: "#051a0a",
-          bgColor2: "#0a2e14",
-          ticketBg: "rgba(5,50,20,0.75)",
-          ticketBorder: "rgba(34,197,94,0.4)",
-          name: "",
         },
         {
           id: "preset-royal-gold",
@@ -143,12 +126,10 @@ export default function App() {
           bgColor2: "#2e2000",
           ticketBg: "rgba(50,35,0,0.75)",
           ticketBorder: "rgba(234,179,8,0.5)",
-          name: "",
         },
         ...savedThemes,
       ];
-      void presetThemes;
-      const theme = allThemes.find((t: any) => t.id === activeId);
+      const theme = presets.find((t: any) => t.id === activeId);
       if (theme) applyTheme(theme as any);
     }
   }, []);
@@ -160,6 +141,10 @@ export default function App() {
     autoCallEnabled,
     setAutoCallEnabled,
     generateTickets,
+    addTicketsFromGrids,
+    addManualTicket,
+    deleteTicket,
+    publishTickets,
     callNextNumber,
     manualCallNumber,
     setBooking,
@@ -174,6 +159,7 @@ export default function App() {
     addBookingRequest,
     approveBookingRequest,
     rejectBookingRequest,
+    updateGameSettings,
   } = useGameState();
 
   const [view, setView] = useState<"player" | "agent-login" | "agent">(
@@ -211,8 +197,12 @@ export default function App() {
         autoCallEnabled={autoCallEnabled}
         setAutoCallEnabled={setAutoCallEnabled}
         onGenerateTickets={generateTickets}
+        onAddTicketsFromGrids={addTicketsFromGrids}
+        onAddManualTicket={addManualTicket}
+        onDeleteTicket={deleteTicket}
         onUpdateTicketName={updateTicketName}
         onUpdateTicketCell={updateTicketCell}
+        onPublishTickets={publishTickets}
         onSetBooking={setBooking}
         onStartPreview={startPreview}
         onStartGame={startGame}
@@ -225,6 +215,7 @@ export default function App() {
         onLogout={handleAgentLogout}
         onApproveBooking={approveBookingRequest}
         onRejectBooking={rejectBookingRequest}
+        onUpdateSettings={updateGameSettings}
         newWinners={newWinners}
       />
     );
@@ -237,11 +228,13 @@ export default function App() {
           <div className="flex items-center gap-2">
             <span className="text-xl">🎱</span>
             <span className="font-heading font-black text-foreground neon-text-purple">
-              Neon Tambola
+              {state.gameName || "Neon Tambola"}
             </span>
-            <span className="hidden sm:block font-heading font-light text-muted-foreground">
-              Live
-            </span>
+            {!state.gameName && (
+              <span className="hidden sm:block font-heading font-light text-muted-foreground">
+                Live
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-3">
             <PhaseTag phase={state.phase} />
@@ -265,7 +258,9 @@ export default function App() {
 
       <main className="flex-1">
         <AnimatePresence mode="wait">
-          {state.phase === "idle" && <IdlePhase key="idle" />}
+          {state.phase === "idle" && (
+            <IdlePhase key="idle" gameName={state.gameName} />
+          )}
           {state.phase === "booking" && (
             <BookingPhase
               key="booking"
@@ -336,7 +331,7 @@ function PhaseWrapper({ children }: { children: React.ReactNode }) {
   );
 }
 
-function IdlePhase() {
+function IdlePhase({ gameName }: { gameName: string }) {
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -346,7 +341,7 @@ function IdlePhase() {
     >
       <div className="animate-float text-7xl sm:text-8xl mb-6">🎱</div>
       <h1 className="text-4xl sm:text-6xl font-heading font-black text-foreground neon-text-purple mb-3">
-        Neon Tambola
+        {gameName || "Neon Tambola"}
       </h1>
       <p className="text-lg sm:text-xl font-heading text-muted-foreground mb-2">
         Live
@@ -378,9 +373,14 @@ function BookingPhase({
         <h2 className="text-3xl font-heading font-black text-foreground neon-text-purple mb-2">
           🎟️ Ticket Booking Open
         </h2>
-        <p className="text-muted-foreground text-sm mb-4">
+        <p className="text-muted-foreground text-sm mb-1">
           {booked} of {state.tickets.length} tickets booked
         </p>
+        {state.ticketLimit > 0 && (
+          <p className="text-xs text-muted-foreground/70 mb-4">
+            Max {state.ticketLimit} bookings allowed
+          </p>
+        )}
         {state.startTime && (
           <div className="glass rounded-2xl inline-block px-8 py-4">
             <p className="text-xs text-muted-foreground uppercase tracking-widest font-mono mb-2">
@@ -422,8 +422,8 @@ function PreviewPhase({ state }: { state: GameState }) {
           </div>
         )}
       </div>
-      <div className="grid lg:grid-cols-2 gap-6">
-        <div>
+      <div className="grid lg:grid-cols-[1fr_1.4fr] gap-6">
+        <div className="space-y-6">
           <CallingDisplay
             currentNumber={state.currentNumber}
             calledNumbers={state.calledNumbers}
@@ -435,7 +435,11 @@ function PreviewPhase({ state }: { state: GameState }) {
             calledNumbers={state.calledNumbers}
           />
         </div>
-        <div>
+        <div className="space-y-6">
+          <NumberBoard
+            calledNumbers={state.calledNumbers}
+            currentNumber={state.currentNumber}
+          />
           <TicketsGrid
             tickets={state.tickets}
             calledNumbers={state.calledNumbers}
@@ -493,10 +497,10 @@ function EndedPhase({ state }: { state: GameState }) {
         <div className="text-center mb-10">
           <div className="text-6xl mb-4 animate-bounce">🎉</div>
           <h2 className="text-4xl sm:text-5xl font-heading font-black neon-text-cyan text-accent mb-2">
-            Full House!
+            Game Over!
           </h2>
           <p className="text-muted-foreground">
-            Game over. Congratulations to all winners!
+            Congratulations to all winners!
           </p>
         </div>
         <div className="grid lg:grid-cols-2 gap-6">

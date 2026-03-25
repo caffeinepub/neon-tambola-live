@@ -12,6 +12,15 @@ export interface BookingRequest {
   timestamp: number;
 }
 
+export interface GameSettings {
+  gameName: string;
+  ticketLimit: number;
+  activePrizes: string[];
+  selectedVoice: string;
+  startTime: string | null;
+  previewDuration: number; // minutes
+}
+
 export interface GameState {
   phase: GamePhase;
   tickets: Ticket[];
@@ -22,9 +31,23 @@ export interface GameState {
   ticketCount: number;
   startTime: string | null;
   bookingRequests: BookingRequest[];
+  gameName: string;
+  ticketLimit: number;
+  activePrizes: string[];
+  selectedVoice: string;
+  isPublished: boolean;
+  previewDuration: number; // minutes, default 5
 }
 
-const KEY = "tambola_game_state_v2";
+const KEY = "tambola_game_state_v4";
+
+export const ALL_PRIZES = [
+  "Early 5",
+  "Top Line",
+  "Middle Line",
+  "Bottom Line",
+  "Full House",
+];
 
 export const defaultState: GameState = {
   phase: "idle",
@@ -36,6 +59,12 @@ export const defaultState: GameState = {
   ticketCount: 60,
   startTime: null,
   bookingRequests: [],
+  gameName: "Neon Tambola Live",
+  ticketLimit: 100,
+  activePrizes: [...ALL_PRIZES],
+  selectedVoice: "",
+  isPublished: false,
+  previewDuration: 5,
 };
 
 export function loadState(): GameState {
@@ -44,7 +73,6 @@ export function loadState(): GameState {
     if (raw) {
       const parsed = JSON.parse(raw) as GameState;
       const state = { ...defaultState, ...parsed };
-      // Repair any tickets that have > 15 numbers (legacy bug fix)
       if (state.tickets.length > 0) {
         state.tickets = state.tickets.map((t) =>
           isValidTicket(t.grid) ? t : repairTicket(t),

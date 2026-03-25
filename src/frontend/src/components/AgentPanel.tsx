@@ -1,9 +1,13 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useState } from "react";
-import type { GameState } from "../utils/gameStorage";
+import { useEffect, useState } from "react";
+import { ALL_PRIZES, type GameState } from "../utils/gameStorage";
+import { getAllVoices } from "../utils/soundEffects";
 import type { Winner } from "../utils/winDetector";
+import OcrUploader from "./OcrUploader";
 import ThemeManager from "./ThemeManager";
 
 interface Props {
@@ -11,6 +15,9 @@ interface Props {
   autoCallEnabled: boolean;
   setAutoCallEnabled: (v: boolean) => void;
   onGenerateTickets: (count: number) => void;
+  onAddTicketsFromGrids: (grids: (number | null)[][][]) => void;
+  onAddManualTicket: () => void;
+  onDeleteTicket: (id: number) => void;
   onUpdateTicketName: (id: number, name: string) => void;
   onUpdateTicketCell: (
     ticketId: number,
@@ -18,6 +25,7 @@ interface Props {
     col: number,
     value: number | null,
   ) => void;
+  onPublishTickets: () => void;
   onSetBooking: () => void;
   onStartPreview: () => void;
   onStartGame: () => void;
@@ -30,6 +38,7 @@ interface Props {
   onLogout: () => void;
   onApproveBooking: (id: string) => void;
   onRejectBooking: (id: string) => void;
+  onUpdateSettings: (s: Partial<GameState>) => void;
   newWinners: Winner[];
 }
 
@@ -80,8 +89,12 @@ export default function AgentPanel({
   autoCallEnabled,
   setAutoCallEnabled,
   onGenerateTickets,
+  onAddTicketsFromGrids,
+  onAddManualTicket,
+  onDeleteTicket,
   onUpdateTicketName,
   onUpdateTicketCell,
+  onPublishTickets,
   onSetBooking,
   onStartPreview,
   onStartGame,
@@ -94,38 +107,56 @@ export default function AgentPanel({
   onLogout,
   onApproveBooking,
   onRejectBooking,
+  onUpdateSettings,
   newWinners,
 }: Props) {
-  const [ticketCount, setTicketCount] = useState(state.ticketCount);
-  const [manualNum, setManualNum] = useState("");
-  const [editNames, setEditNames] = useState(false);
-  const [nameEdits, setNameEdits] = useState<Record<number, string>>({});
   const [activeTab, setActiveTab] = useState<
-    "control" | "tickets" | "bookings" | "winners" | "themes"
-  >("control");
-  // Per-ticket edit mode set
+    "setup" | "tickets" | "game" | "bookings" | "winners" | "themes"
+  >("setup");
+  const [manualNum, setManualNum] = useState("");
   const [editingTickets, setEditingTickets] = useState<Set<number>>(new Set());
-  // Active cell edit state
   const [cellEdit, setCellEdit] = useState<CellEditState | null>(null);
+  const [nameEdits, setNameEdits] = useState<Record<number, string>>({});
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
 
-  // suppress unused warning — Badge imported for potential future use
+  // Local setup form state
+  const [localName, setLocalName] = useState(state.gameName);
+  const [localLimit, setLocalLimit] = useState(state.ticketLimit);
+  const [localPrizes, setLocalPrizes] = useState<string[]>(state.activePrizes);
+  const [localVoice, setLocalVoice] = useState(state.selectedVoice);
+  const [localPreviewDuration, setLocalPreviewDuration] = useState(
+    state.previewDuration ?? 5,
+  );
+  const [ticketCount, setTicketCount] = useState(state.ticketCount || 60);
+
   void Badge;
+
+  useEffect(() => {
+    const load = () => setVoices(getAllVoices());
+    load();
+    if (window.speechSynthesis) {
+      window.speechSynthesis.onvoiceschanged = load;
+    }
+  }, []);
 
   const pendingCount = state.bookingRequests.filter(
     (r) => r.status === "pending",
   ).length;
 
-  const handleGenerate = () => {
-    const count = Math.max(6, Math.floor(ticketCount / 6) * 6);
-    onGenerateTickets(count);
+  const handleSaveSettings = () => {
+    onUpdateSettings({
+      gameName: localName,
+      ticketLimit: localLimit,
+      activePrizes: localPrizes,
+      selectedVoice: localVoice,
+      previewDuration: localPreviewDuration,
+    });
   };
 
-  const handleSaveNames = () => {
-    for (const [id, name] of Object.entries(nameEdits)) {
-      onUpdateTicketName(Number(id), name);
-    }
-    setNameEdits({});
-    setEditNames(false);
+  const togglePrize = (prize: string) => {
+    setLocalPrizes((prev) =>
+      prev.includes(prize) ? prev.filter((p) => p !== prize) : [...prev, prize],
+    );
   };
 
   const toggleTicketEdit = (ticketId: number) => {
@@ -133,7 +164,6 @@ export default function AgentPanel({
       const next = new Set(prev);
       if (next.has(ticketId)) {
         next.delete(ticketId);
-        // clear any active cell edit for this ticket
         setCellEdit((c) => (c?.ticketId === ticketId ? null : c));
       } else {
         next.add(ticketId);
@@ -176,15 +206,14 @@ export default function AgentPanel({
     setCellEdit(null);
   };
 
-  const cancelCellEdit = () => setCellEdit(null);
-
   const localDateValue = state.startTime
     ? new Date(state.startTime).toISOString().slice(0, 16)
     : "";
 
   const tabs = [
-    { id: "control", label: "Control" },
+    { id: "setup", label: "Setup" },
     { id: "tickets", label: "Tickets" },
+    { id: "game", label: "Game" },
     { id: "bookings", label: "Bookings", badge: pendingCount },
     { id: "winners", label: "Winners" },
     { id: "themes", label: "Themes" },
@@ -193,18 +222,19 @@ export default function AgentPanel({
   return (
     <div className="min-h-screen text-foreground">
       <div className="max-w-4xl mx-auto px-4 py-6">
+        {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-heading font-black text-foreground neon-text-purple">
               Agent Control Panel
             </h1>
-            <p className="text-sm text-muted-foreground">Neon Tambola Live</p>
+            <p className="text-sm text-muted-foreground">
+              {state.gameName || "Neon Tambola Live"}
+            </p>
           </div>
           <div className="flex items-center gap-3">
             <span
-              className={`text-xs font-mono font-bold px-3 py-1 rounded-full border uppercase ${
-                PHASE_COLORS[state.phase] ?? ""
-              }`}
+              className={`text-xs font-mono font-bold px-3 py-1 rounded-full border uppercase ${PHASE_COLORS[state.phase] ?? ""}`}
             >
               {state.phase}
             </span>
@@ -220,6 +250,7 @@ export default function AgentPanel({
           </div>
         </div>
 
+        {/* New winner alert */}
         {newWinners.length > 0 && (
           <div className="mb-4 glass rounded-xl border-accent/40 p-3 animate-slide-up">
             <p className="text-accent font-bold text-sm mb-1">🏆 New Winner!</p>
@@ -234,6 +265,7 @@ export default function AgentPanel({
           </div>
         )}
 
+        {/* Tabs */}
         <div className="flex gap-2 mb-6 flex-wrap">
           {tabs.map((tab) => (
             <button
@@ -257,13 +289,258 @@ export default function AgentPanel({
           ))}
         </div>
 
-        {activeTab === "control" && (
+        {/* ── Setup Tab ── */}
+        {activeTab === "setup" && (
           <div className="space-y-4">
+            {/* Game name & schedule */}
+            <div className="glass rounded-2xl p-5 space-y-4">
+              <h3 className="text-xs font-mono font-bold text-primary uppercase tracking-widest">
+                Game Settings
+              </h3>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">
+                    Game Name
+                  </Label>
+                  <input
+                    type="text"
+                    value={localName}
+                    onChange={(e) => setLocalName(e.target.value)}
+                    placeholder="Neon Tambola Live"
+                    className="w-full glass rounded-lg px-3 py-2 text-foreground text-sm outline-none focus:border-primary/60"
+                    data-ocid="setup.input"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">
+                    Ticket Limit (max bookings)
+                  </Label>
+                  <input
+                    type="number"
+                    value={localLimit}
+                    onChange={(e) => setLocalLimit(Number(e.target.value))}
+                    min={1}
+                    max={600}
+                    className="w-full glass rounded-lg px-3 py-2 text-foreground text-sm outline-none focus:border-primary/60"
+                    data-ocid="setup.ticket_limit_input"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">
+                    Preview Duration (minutes)
+                  </Label>
+                  <input
+                    type="number"
+                    value={localPreviewDuration}
+                    onChange={(e) =>
+                      setLocalPreviewDuration(
+                        Math.max(1, Math.min(30, Number(e.target.value))),
+                      )
+                    }
+                    min={1}
+                    max={30}
+                    className="w-full glass rounded-lg px-3 py-2 text-foreground text-sm outline-none focus:border-primary/60"
+                    data-ocid="setup.preview_duration_input"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">
+                  Start Time
+                </Label>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <input
+                    type="datetime-local"
+                    value={localDateValue}
+                    onChange={(e) =>
+                      onSetStartTime(
+                        e.target.value
+                          ? new Date(e.target.value).toISOString()
+                          : null,
+                      )
+                    }
+                    className="glass rounded-lg px-3 py-2 text-foreground text-sm outline-none focus:border-primary/60"
+                    data-ocid="setup.start_time_input"
+                  />
+                  {state.startTime && (
+                    <button
+                      type="button"
+                      onClick={() => onSetStartTime(null)}
+                      className="text-xs text-destructive border border-destructive/30 px-2 py-1 rounded-full hover:bg-destructive/10"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Preview starts {localPreviewDuration} min before. Game starts
+                  automatically.
+                </p>
+              </div>
+            </div>
+
+            {/* Active prizes */}
             <div className="glass rounded-2xl p-5">
               <h3 className="text-xs font-mono font-bold text-primary uppercase tracking-widest mb-4">
-                Ticket Configuration
+                Active Prizes
               </h3>
-              <div className="flex items-center gap-3 flex-wrap">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {ALL_PRIZES.map((prize) => (
+                  <div key={prize} className="flex items-center gap-2">
+                    <Checkbox
+                      id={`prize-${prize}`}
+                      checked={localPrizes.includes(prize)}
+                      onCheckedChange={() => togglePrize(prize)}
+                      data-ocid={`setup.${prize.toLowerCase().replace(/ /g, "_")}.checkbox`}
+                    />
+                    <Label
+                      htmlFor={`prize-${prize}`}
+                      className="text-sm text-foreground cursor-pointer"
+                    >
+                      {prize}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground mt-3">
+                Only selected prizes will be tracked and announced during the
+                game.
+              </p>
+            </div>
+
+            {/* Voice selection */}
+            <div className="glass rounded-2xl p-5">
+              <h3 className="text-xs font-mono font-bold text-primary uppercase tracking-widest mb-4">
+                Number Calling Voice
+              </h3>
+              {(() => {
+                const testVoice = (voiceName: string) => {
+                  window.speechSynthesis.cancel();
+                  const utt = new SpeechSynthesisUtterance(
+                    "Lucky number seven, 7",
+                  );
+                  const v = window.speechSynthesis
+                    .getVoices()
+                    .find((v) => v.name === voiceName);
+                  if (v) utt.voice = v;
+                  window.speechSynthesis.speak(utt);
+                };
+                const allOptions = [{ name: "", lang: "" }, ...voices];
+                return (
+                  <div
+                    className="space-y-1 max-h-56 overflow-y-auto pr-1"
+                    data-ocid="setup.voice_select"
+                  >
+                    {allOptions.map((v) => {
+                      const isSelected = localVoice === v.name;
+                      const label =
+                        v.name === "" ? "Auto (Best Available)" : v.name;
+                      const lang = v.lang || "";
+                      return (
+                        <div
+                          key={v.name || "__auto__"}
+                          onClick={() => setLocalVoice(v.name)}
+                          onKeyDown={(e) =>
+                            e.key === "Enter" && setLocalVoice(v.name)
+                          }
+                          className={`flex items-center justify-between gap-2 px-3 py-2 rounded-lg cursor-pointer transition-all ${
+                            isSelected
+                              ? "bg-primary/20 border border-primary/50 text-primary"
+                              : "glass border border-border/30 text-muted-foreground hover:text-foreground hover:border-primary/30"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div
+                              className={`w-3 h-3 rounded-full border-2 flex-shrink-0 ${isSelected ? "border-primary bg-primary" : "border-muted-foreground/50"}`}
+                            />
+                            <div className="min-w-0">
+                              <p className="text-xs font-medium truncate">
+                                {label}
+                              </p>
+                              {lang && (
+                                <p className="text-[10px] text-muted-foreground/70">
+                                  {lang}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          {v.name !== "" && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                testVoice(v.name);
+                              }}
+                              className="flex-shrink-0 text-[10px] px-2 py-1 glass border border-accent/40 text-accent rounded hover:bg-accent/20 transition-colors font-mono"
+                            >
+                              ▶ Test
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+              {voices.length === 0 && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  No voices loaded yet. Voices appear after first page
+                  interaction in most browsers.
+                </p>
+              )}
+            </div>
+
+            <Button
+              onClick={handleSaveSettings}
+              className="w-full bg-gradient-to-r from-primary/80 to-accent/80 hover:from-primary hover:to-accent text-white font-heading font-bold"
+              data-ocid="setup.save_button"
+            >
+              Save Settings
+            </Button>
+
+            {/* New game reset */}
+            <div className="glass rounded-2xl p-4 border-destructive/20">
+              <h3 className="text-xs font-mono font-bold text-destructive uppercase tracking-widest mb-3">
+                Danger Zone
+              </h3>
+              <Button
+                size="sm"
+                onClick={onReset}
+                variant="outline"
+                className="border-destructive/30 text-destructive hover:bg-destructive/10"
+                data-ocid="setup.delete_button"
+              >
+                Reset & Start New Game
+              </Button>
+              <p className="text-xs text-muted-foreground mt-2">
+                Clears all tickets, bookings, and called numbers.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* ── Tickets Tab ── */}
+        {activeTab === "tickets" && (
+          <div className="space-y-4">
+            {/* Upload */}
+            <div className="glass rounded-2xl p-5">
+              <h3 className="text-xs font-mono font-bold text-primary uppercase tracking-widest mb-4">
+                Upload Ticket Photo / PDF
+              </h3>
+              <p className="text-xs text-muted-foreground mb-3">
+                Upload a photo of printed Tambola tickets. Numbers will be
+                extracted automatically via OCR.
+              </p>
+              <OcrUploader onTicketsExtracted={onAddTicketsFromGrids} />
+            </div>
+
+            {/* Manual generation */}
+            <div className="glass rounded-2xl p-5">
+              <h3 className="text-xs font-mono font-bold text-primary uppercase tracking-widest mb-4">
+                Generate / Add Manually
+              </h3>
+              <div className="flex items-center gap-3 flex-wrap mb-3">
                 <input
                   type="number"
                   value={ticketCount}
@@ -272,67 +549,262 @@ export default function AgentPanel({
                   max={600}
                   step={6}
                   className="w-28 glass rounded-lg px-3 py-2 text-foreground text-sm outline-none focus:border-primary/60"
+                  data-ocid="tickets.count_input"
                 />
                 <span className="text-xs text-muted-foreground">
                   tickets (multiples of 6)
                 </span>
                 <Button
-                  onClick={handleGenerate}
+                  onClick={() =>
+                    onGenerateTickets(
+                      Math.max(6, Math.floor(ticketCount / 6) * 6),
+                    )
+                  }
                   size="sm"
                   className="bg-primary/20 hover:bg-primary/30 text-primary border border-primary/30"
-                  data-ocid="agent.primary_button"
+                  data-ocid="tickets.generate_button"
                 >
-                  Generate Tickets
+                  Auto-Generate
+                </Button>
+                <Button
+                  onClick={onAddManualTicket}
+                  size="sm"
+                  variant="outline"
+                  className="border-accent/30 text-accent hover:bg-accent/10"
+                  data-ocid="tickets.add_manual_button"
+                >
+                  + Add Blank Ticket
                 </Button>
               </div>
               {state.tickets.length > 0 && (
-                <p className="text-xs text-success mt-2 font-mono">
-                  ✓ {state.tickets.length} tickets generated
+                <p className="text-xs text-success font-mono">
+                  ✓ {state.tickets.length} tickets ready
                 </p>
               )}
             </div>
 
-            <div className="glass rounded-2xl p-5">
-              <h3 className="text-xs font-mono font-bold text-primary uppercase tracking-widest mb-4">
-                Schedule Start Time
-              </h3>
-              <div className="flex items-center gap-3 flex-wrap">
-                <input
-                  type="datetime-local"
-                  value={localDateValue}
-                  onChange={(e) =>
-                    onSetStartTime(
-                      e.target.value
-                        ? new Date(e.target.value).toISOString()
-                        : null,
-                    )
-                  }
-                  className="glass rounded-lg px-3 py-2 text-foreground text-sm outline-none focus:border-primary/60"
-                  data-ocid="agent.input"
-                />
-                {state.startTime && (
-                  <>
-                    <span className="text-xs text-success font-mono">
-                      {new Date(state.startTime).toLocaleString()}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => onSetStartTime(null)}
-                      className="text-xs text-destructive border border-destructive/30 px-2 py-1 rounded-full hover:bg-destructive/10"
-                    >
-                      Clear
-                    </button>
-                  </>
-                )}
+            {/* Publish */}
+            {state.tickets.length > 0 && !state.isPublished && (
+              <div className="glass rounded-2xl p-5 border-accent/20">
+                <h3 className="text-xs font-mono font-bold text-accent uppercase tracking-widest mb-3">
+                  Publish Tickets
+                </h3>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Once published, players can see and book tickets. Currently{" "}
+                  <span className="text-foreground font-bold">
+                    {state.tickets.length}
+                  </span>{" "}
+                  tickets ready.
+                </p>
+                <Button
+                  onClick={onPublishTickets}
+                  className="bg-accent/20 hover:bg-accent/30 text-accent border border-accent/30 font-heading font-bold"
+                  data-ocid="tickets.publish_button"
+                >
+                  🚀 Publish Tickets & Open Booking
+                </Button>
               </div>
-              <p className="text-xs text-muted-foreground mt-2">
-                Preview starts 5 min before. Game starts automatically.
-              </p>
-            </div>
+            )}
+            {state.isPublished && (
+              <div className="glass rounded-xl p-3 border-success/20">
+                <p className="text-xs text-success font-mono">
+                  ✓ Tickets published — booking is open
+                </p>
+              </div>
+            )}
 
+            {/* Ticket list */}
+            {state.tickets.length > 0 && (
+              <div className="glass rounded-2xl p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xs font-mono font-bold text-primary uppercase tracking-widest">
+                    All Tickets ({state.tickets.length})
+                  </h3>
+                </div>
+                <ScrollArea className="h-[50vh] pr-2">
+                  <div className="space-y-3">
+                    {state.tickets.map((t) => {
+                      const isEditing = editingTickets.has(t.id);
+                      return (
+                        <div key={t.id} className="glass rounded-xl p-3">
+                          <div className="flex items-center gap-2 mb-2 flex-wrap">
+                            <span className="text-xs font-mono font-black text-primary">
+                              #{t.id}
+                            </span>
+                            <input
+                              type="text"
+                              defaultValue={t.playerName}
+                              onChange={(e) =>
+                                setNameEdits((prev) => ({
+                                  ...prev,
+                                  [t.id]: e.target.value,
+                                }))
+                              }
+                              onBlur={() => {
+                                if (nameEdits[t.id])
+                                  onUpdateTicketName(t.id, nameEdits[t.id]);
+                              }}
+                              className="flex-1 glass rounded px-2 py-1 text-xs text-foreground outline-none focus:border-primary/60 min-w-0"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => toggleTicketEdit(t.id)}
+                              className={`text-[10px] px-2 py-0.5 rounded-full border transition-all font-mono ${
+                                isEditing
+                                  ? "bg-accent/20 border-accent/40 text-accent"
+                                  : "border-border text-muted-foreground hover:text-foreground"
+                              }`}
+                            >
+                              {isEditing ? "✓" : "Edit"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => onDeleteTicket(t.id)}
+                              className="text-[10px] px-2 py-0.5 rounded-full border border-destructive/30 text-destructive hover:bg-destructive/10 font-mono"
+                              data-ocid="tickets.delete_button"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                          {isEditing && (
+                            <div className="grid grid-cols-9 gap-1 mb-1">
+                              {COL_RANGES.map((r) => (
+                                <div
+                                  key={r}
+                                  className="text-center text-[8px] font-mono text-accent/60"
+                                >
+                                  {r}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <div className="space-y-1">
+                            {t.grid.map((row, ri) => (
+                              <div
+                                key={ROW_KEYS[ri]}
+                                className="grid grid-cols-9 gap-1"
+                              >
+                                {row.map((cell, ci) => {
+                                  const isActiveEdit =
+                                    cellEdit?.ticketId === t.id &&
+                                    cellEdit?.row === ri &&
+                                    cellEdit?.col === ci;
+                                  if (isEditing) {
+                                    return (
+                                      <div
+                                        key={COL_KEYS[ci]}
+                                        className="relative"
+                                      >
+                                        {isActiveEdit ? (
+                                          <div className="flex flex-col gap-0.5">
+                                            <input
+                                              // biome-ignore lint/a11y/noAutofocus: intentional for inline editing
+                                              autoFocus
+                                              type="number"
+                                              value={cellEdit.value}
+                                              min={COL_MINS[ci]}
+                                              max={COL_MAXS[ci]}
+                                              onChange={(e) =>
+                                                setCellEdit((prev) =>
+                                                  prev
+                                                    ? {
+                                                        ...prev,
+                                                        value: e.target.value,
+                                                        error: null,
+                                                      }
+                                                    : null,
+                                                )
+                                              }
+                                              onKeyDown={(e) => {
+                                                if (e.key === "Enter")
+                                                  commitCellEdit();
+                                                if (e.key === "Escape")
+                                                  setCellEdit(null);
+                                              }}
+                                              onBlur={commitCellEdit}
+                                              className="w-full h-7 glass rounded text-[10px] text-center text-foreground outline-none border border-accent/40 font-mono"
+                                            />
+                                            {cellEdit.error && (
+                                              <span className="text-[8px] text-destructive">
+                                                {cellEdit.error}
+                                              </span>
+                                            )}
+                                          </div>
+                                        ) : (
+                                          <div className="relative group">
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                startCellEdit(
+                                                  t.id,
+                                                  ri,
+                                                  ci,
+                                                  cell,
+                                                )
+                                              }
+                                              className={`w-full h-7 rounded text-[10px] font-mono font-semibold flex items-center justify-center transition-all ${
+                                                cell === null
+                                                  ? "bg-black/30 border border-dashed border-border/30 hover:border-accent/30 text-muted-foreground/30"
+                                                  : "bg-white/8 text-foreground hover:bg-accent/20 hover:text-accent border border-transparent hover:border-accent/30"
+                                              }`}
+                                            >
+                                              {cell ?? ""}
+                                            </button>
+                                            {cell !== null && (
+                                              <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  onUpdateTicketCell(
+                                                    t.id,
+                                                    ri,
+                                                    ci,
+                                                    null,
+                                                  );
+                                                }}
+                                                className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-destructive/80 text-white text-[8px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                                              >
+                                                ×
+                                              </button>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  }
+                                  return (
+                                    <div
+                                      key={COL_KEYS[ci]}
+                                      className={`h-6 rounded flex items-center justify-center text-[10px] font-mono font-semibold ${
+                                        cell === null
+                                          ? "bg-black/20"
+                                          : "bg-white/5 text-muted-foreground"
+                                      }`}
+                                    >
+                                      {cell ?? ""}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </ScrollArea>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Game Tab ── */}
+        {activeTab === "game" && (
+          <div className="space-y-4">
+            {/* Phase controls */}
             <div className="glass rounded-2xl p-5">
               <h3 className="text-xs font-mono font-bold text-primary uppercase tracking-widest mb-4">
-                Game Phase Controls
+                Phase Controls
               </h3>
               <div className="flex flex-wrap gap-2">
                 <Button
@@ -341,7 +813,7 @@ export default function AgentPanel({
                   disabled={state.tickets.length === 0}
                   variant="outline"
                   className="border-border text-foreground"
-                  data-ocid="agent.primary_button"
+                  data-ocid="game.open_booking_button"
                 >
                   Open Booking
                 </Button>
@@ -351,7 +823,7 @@ export default function AgentPanel({
                   disabled={state.phase === "idle"}
                   variant="outline"
                   className="border-blue-400/30 text-blue-400"
-                  data-ocid="agent.primary_button"
+                  data-ocid="game.preview_button"
                 >
                   Start Preview
                 </Button>
@@ -360,7 +832,7 @@ export default function AgentPanel({
                   onClick={onStartGame}
                   disabled={state.phase === "active" || state.phase === "ended"}
                   className="bg-success/20 text-success border border-success/30"
-                  data-ocid="agent.primary_button"
+                  data-ocid="game.start_button"
                 >
                   Start Game
                 </Button>
@@ -370,22 +842,14 @@ export default function AgentPanel({
                   disabled={state.phase !== "active"}
                   variant="destructive"
                   className="bg-destructive/20 text-destructive border-destructive/30"
-                  data-ocid="agent.stop_game_button"
+                  data-ocid="game.stop_button"
                 >
                   Stop Game
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={onReset}
-                  variant="outline"
-                  className="border-destructive/30 text-destructive"
-                  data-ocid="agent.delete_button"
-                >
-                  New Game
                 </Button>
               </div>
             </div>
 
+            {/* Number calling */}
             <div className="glass rounded-2xl p-5">
               <h3 className="text-xs font-mono font-bold text-primary uppercase tracking-widest mb-4">
                 Number Calling
@@ -396,7 +860,7 @@ export default function AgentPanel({
                   onClick={onCallNext}
                   disabled={state.phase !== "active"}
                   className="bg-accent/20 text-accent border border-accent/30 hover:bg-accent/30"
-                  data-ocid="agent.call_next_button"
+                  data-ocid="game.call_next_button"
                 >
                   Call Next
                 </Button>
@@ -409,7 +873,7 @@ export default function AgentPanel({
                       ? "bg-success/20 border-success/40 text-success"
                       : "glass border-border text-muted-foreground"
                   }`}
-                  data-ocid="agent.auto_call_toggle"
+                  data-ocid="game.auto_call_toggle"
                 >
                   <div
                     className={`w-2 h-2 rounded-full ${autoCallEnabled ? "bg-success animate-pulse" : "bg-muted-foreground"}`}
@@ -428,10 +892,9 @@ export default function AgentPanel({
                   value={state.callSpeed}
                   onChange={(e) => onSetCallSpeed(Number(e.target.value))}
                   className="flex-1 accent-primary"
-                  data-ocid="agent.toggle"
                 />
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 mb-4">
                 <input
                   type="number"
                   placeholder="#"
@@ -440,7 +903,7 @@ export default function AgentPanel({
                   min={1}
                   max={90}
                   className="w-20 glass rounded-lg px-3 py-2 text-foreground text-sm outline-none focus:border-primary/60"
-                  data-ocid="agent.manual_number_input"
+                  data-ocid="game.manual_number_input"
                 />
                 <Button
                   size="sm"
@@ -451,248 +914,43 @@ export default function AgentPanel({
                   disabled={!manualNum || state.phase !== "active"}
                   variant="outline"
                   className="border-border"
-                  data-ocid="agent.manual_call_button"
+                  data-ocid="game.manual_call_button"
                 >
                   Call Manual
                 </Button>
               </div>
-              {state.calledNumbers.length > 0 && (
-                <div className="mt-3">
-                  <p className="text-xs text-muted-foreground font-mono mb-1.5">
-                    {state.calledNumbers.length}/90 called
-                  </p>
-                  <div className="flex flex-wrap gap-1">
-                    {[...state.calledNumbers]
-                      .reverse()
-                      .slice(0, 25)
-                      .map((n) => (
-                        <span
-                          key={n}
-                          className="text-xs font-mono bg-primary/15 text-primary/80 px-2 py-0.5 rounded-full border border-primary/20"
-                        >
-                          {n}
-                        </span>
-                      ))}
-                    {state.calledNumbers.length > 25 && (
-                      <span className="text-xs text-muted-foreground">
-                        +{state.calledNumbers.length - 25} more
-                      </span>
-                    )}
-                  </div>
+
+              {/* 90-number grid */}
+              <div className="mt-2">
+                <p className="text-xs text-muted-foreground font-mono mb-2">
+                  {state.calledNumbers.length}/90 called
+                </p>
+                <div className="grid grid-cols-10 gap-1">
+                  {Array.from({ length: 90 }, (_, i) => i + 1).map((n) => {
+                    const called = state.calledNumbers.includes(n);
+                    const isCurrent = state.currentNumber === n;
+                    return (
+                      <div
+                        key={n}
+                        className={`aspect-square rounded flex items-center justify-center text-[10px] font-mono font-bold transition-all ${
+                          isCurrent
+                            ? "bg-accent text-accent-foreground shadow-neon-cyan scale-110"
+                            : called
+                              ? "bg-primary/30 text-primary"
+                              : "bg-white/5 text-muted-foreground/40"
+                        }`}
+                      >
+                        {n}
+                      </div>
+                    );
+                  })}
                 </div>
-              )}
+              </div>
             </div>
           </div>
         )}
 
-        {activeTab === "tickets" && (
-          <div className="glass rounded-2xl p-5">
-            <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
-              <h3 className="text-xs font-mono font-bold text-primary uppercase tracking-widest">
-                Ticket Management
-              </h3>
-              <div className="flex gap-2">
-                {!editNames && (
-                  <button
-                    type="button"
-                    onClick={() => setEditNames(true)}
-                    className="text-xs px-3 py-1.5 rounded-full border glass border-border text-muted-foreground hover:text-foreground font-mono"
-                    data-ocid="agent.edit_names_button"
-                  >
-                    Edit Names
-                  </button>
-                )}
-                {editNames && (
-                  <Button
-                    size="sm"
-                    onClick={handleSaveNames}
-                    className="bg-success/20 text-success border border-success/30 text-xs"
-                    data-ocid="agent.save_names_button"
-                  >
-                    Save All
-                  </Button>
-                )}
-              </div>
-            </div>
-
-            <ScrollArea className="h-[70vh] pr-2">
-              <div className="space-y-3">
-                {state.tickets.map((t) => {
-                  const isEditing = editingTickets.has(t.id);
-                  return (
-                    <div key={t.id} className="glass rounded-xl p-3">
-                      {/* Ticket header */}
-                      <div className="flex items-center gap-2 mb-2 flex-wrap">
-                        <span className="text-xs font-mono font-black text-primary">
-                          #{t.id}
-                        </span>
-                        {editNames ? (
-                          <input
-                            type="text"
-                            defaultValue={t.playerName}
-                            onChange={(e) =>
-                              setNameEdits((prev) => ({
-                                ...prev,
-                                [t.id]: e.target.value,
-                              }))
-                            }
-                            className="flex-1 glass rounded px-2 py-1 text-xs text-foreground outline-none focus:border-primary/60 min-w-0"
-                          />
-                        ) : (
-                          <span className="text-xs text-muted-foreground flex-1 truncate">
-                            {t.playerName}
-                          </span>
-                        )}
-                        <span className="text-[10px] text-muted-foreground font-mono">
-                          Set {t.setIndex + 1}
-                        </span>
-                        {/* Edit Numbers toggle — always available to admin */}
-                        <button
-                          type="button"
-                          onClick={() => toggleTicketEdit(t.id)}
-                          className={`text-[10px] px-2 py-0.5 rounded-full border transition-all font-mono ${
-                            isEditing
-                              ? "bg-accent/20 border-accent/40 text-accent"
-                              : "border-border text-muted-foreground hover:text-foreground"
-                          }`}
-                          data-ocid="agent.edit_numbers_toggle"
-                        >
-                          {isEditing ? "✓ Editing" : "Edit #s"}
-                        </button>
-                      </div>
-
-                      {/* Column range labels when editing */}
-                      {isEditing && (
-                        <div className="grid grid-cols-9 gap-1 mb-1 mt-1">
-                          {COL_RANGES.map((r) => (
-                            <div
-                              key={r}
-                              className="text-center text-[8px] font-mono text-accent/60"
-                            >
-                              {r}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Ticket grid */}
-                      <div className="space-y-1">
-                        {t.grid.map((row, ri) => (
-                          <div
-                            key={ROW_KEYS[ri]}
-                            className="grid grid-cols-9 gap-1"
-                          >
-                            {row.map((cell, ci) => {
-                              const isActiveEdit =
-                                cellEdit?.ticketId === t.id &&
-                                cellEdit?.row === ri &&
-                                cellEdit?.col === ci;
-
-                              if (isEditing) {
-                                return (
-                                  <div key={COL_KEYS[ci]} className="relative">
-                                    {isActiveEdit ? (
-                                      <div className="flex flex-col gap-0.5">
-                                        <input
-                                          // biome-ignore lint/a11y/noAutofocus: intentional for inline editing
-                                          autoFocus
-                                          type="number"
-                                          value={cellEdit.value}
-                                          min={COL_MINS[ci]}
-                                          max={COL_MAXS[ci]}
-                                          onChange={(e) =>
-                                            setCellEdit((prev) =>
-                                              prev
-                                                ? {
-                                                    ...prev,
-                                                    value: e.target.value,
-                                                    error: null,
-                                                  }
-                                                : null,
-                                            )
-                                          }
-                                          onKeyDown={(e) => {
-                                            if (e.key === "Enter")
-                                              commitCellEdit();
-                                            if (e.key === "Escape")
-                                              cancelCellEdit();
-                                          }}
-                                          onBlur={commitCellEdit}
-                                          className="w-full h-7 glass rounded text-[10px] text-center text-foreground outline-none focus:border-accent/60 font-mono border border-accent/40"
-                                        />
-                                        {cellEdit.error && (
-                                          <span className="text-[8px] text-destructive leading-none text-center">
-                                            {cellEdit.error}
-                                          </span>
-                                        )}
-                                      </div>
-                                    ) : (
-                                      <div className="relative group">
-                                        <button
-                                          type="button"
-                                          onClick={() =>
-                                            startCellEdit(t.id, ri, ci, cell)
-                                          }
-                                          className={`w-full h-7 rounded text-[10px] font-mono font-semibold flex items-center justify-center transition-all
-                                            ${
-                                              cell === null
-                                                ? "bg-black/30 text-muted-foreground/30 border border-dashed border-border/30 hover:border-accent/30"
-                                                : "bg-white/8 text-foreground hover:bg-accent/20 hover:text-accent border border-transparent hover:border-accent/30"
-                                            }`}
-                                        >
-                                          {cell ?? ""}
-                                        </button>
-                                        {/* Delete/clear button */}
-                                        {cell !== null && (
-                                          <button
-                                            type="button"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              onUpdateTicketCell(
-                                                t.id,
-                                                ri,
-                                                ci,
-                                                null,
-                                              );
-                                            }}
-                                            className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-destructive/80 text-white text-[8px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive z-10"
-                                            title="Clear cell"
-                                          >
-                                            ×
-                                          </button>
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              }
-
-                              // Non-edit mode: plain cell
-                              return (
-                                <div
-                                  key={COL_KEYS[ci]}
-                                  className={`h-6 rounded flex items-center justify-center text-[10px] font-mono font-semibold
-                                    ${
-                                      cell === null
-                                        ? "bg-black/20"
-                                        : "bg-white/5 text-muted-foreground"
-                                    }`}
-                                >
-                                  {cell ?? ""}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </ScrollArea>
-          </div>
-        )}
-
+        {/* ── Bookings Tab ── */}
         {activeTab === "bookings" && (
           <div className="glass rounded-2xl p-5">
             <h3 className="text-xs font-mono font-bold text-primary uppercase tracking-widest mb-5">
@@ -701,7 +959,7 @@ export default function AgentPanel({
             {state.bookingRequests.length === 0 ? (
               <div
                 className="text-center py-10 text-muted-foreground"
-                data-ocid="agent.empty_state"
+                data-ocid="bookings.empty_state"
               >
                 No booking requests yet
               </div>
@@ -717,7 +975,7 @@ export default function AgentPanel({
                           ? "border-destructive/30"
                           : ""
                     }`}
-                    data-ocid={`agent.item.${idx + 1}`}
+                    data-ocid={`bookings.item.${idx + 1}`}
                   >
                     <div>
                       <div className="flex items-center gap-2 mb-1">
@@ -749,7 +1007,7 @@ export default function AgentPanel({
                           size="sm"
                           onClick={() => onApproveBooking(req.id)}
                           className="bg-success/20 text-success border border-success/30 hover:bg-success/30 text-xs"
-                          data-ocid="agent.confirm_button"
+                          data-ocid="bookings.confirm_button"
                         >
                           Approve
                         </Button>
@@ -758,7 +1016,7 @@ export default function AgentPanel({
                           variant="outline"
                           onClick={() => onRejectBooking(req.id)}
                           className="border-destructive/30 text-destructive hover:bg-destructive/10 text-xs"
-                          data-ocid="agent.delete_button"
+                          data-ocid="bookings.delete_button"
                         >
                           Reject
                         </Button>
@@ -771,6 +1029,7 @@ export default function AgentPanel({
           </div>
         )}
 
+        {/* ── Winners Tab ── */}
         {activeTab === "winners" && (
           <div className="glass rounded-2xl p-5">
             <h3 className="text-xs font-mono font-bold text-primary uppercase tracking-widest mb-5">
@@ -779,7 +1038,7 @@ export default function AgentPanel({
             {state.winners.length === 0 ? (
               <div
                 className="text-center py-10 text-muted-foreground"
-                data-ocid="agent.empty_state"
+                data-ocid="winners.empty_state"
               >
                 No winners yet
               </div>
@@ -798,7 +1057,7 @@ export default function AgentPanel({
                     {state.winners.map((w, idx) => (
                       <tr
                         key={`${w.ticketId}-${w.winType}`}
-                        data-ocid={`agent.row.${idx + 1}`}
+                        data-ocid={`winners.row.${idx + 1}`}
                       >
                         <td className="py-2.5 text-accent font-mono font-bold">
                           {w.winType}
