@@ -6,7 +6,9 @@ export type GamePhase = "idle" | "booking" | "preview" | "active" | "ended";
 
 export interface BookingRequest {
   id: string;
-  ticketId: number;
+  ticketId: number; // first ticket (backwards compat)
+  ticketIds: number[]; // all tickets in the package
+  packageType: "single" | "half" | "full" | "custom";
   playerName: string;
   status: "pending" | "approved" | "rejected";
   timestamp: number;
@@ -17,6 +19,7 @@ export interface GameSettings {
   ticketLimit: number;
   activePrizes: string[];
   selectedVoice: string;
+  voiceMode: string;
   startTime: string | null;
   previewDuration: number; // minutes
 }
@@ -35,6 +38,7 @@ export interface GameState {
   ticketLimit: number;
   activePrizes: string[];
   selectedVoice: string;
+  voiceMode: string;
   isPublished: boolean;
   previewDuration: number; // minutes, default 5
 }
@@ -63,6 +67,7 @@ export const defaultState: GameState = {
   ticketLimit: 100,
   activePrizes: [...ALL_PRIZES],
   selectedVoice: "",
+  voiceMode: "male",
   isPublished: false,
   previewDuration: 5,
 };
@@ -73,6 +78,12 @@ export function loadState(): GameState {
     if (raw) {
       const parsed = JSON.parse(raw) as GameState;
       const state = { ...defaultState, ...parsed };
+      // Migrate old booking requests that lack new fields
+      state.bookingRequests = state.bookingRequests.map((r: any) => ({
+        ...r,
+        packageType: r.packageType ?? "single",
+        ticketIds: r.ticketIds ?? [r.ticketId],
+      }));
       if (state.tickets.length > 0) {
         state.tickets = state.tickets.map((t) =>
           isValidTicket(t.grid) ? t : repairTicket(t),

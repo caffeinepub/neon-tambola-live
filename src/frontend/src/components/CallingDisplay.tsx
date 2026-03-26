@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from "react";
-import { TAMBOLA_CALLS } from "../utils/soundEffects";
 
 interface Props {
   currentNumber: number | null;
@@ -24,7 +23,7 @@ export default function CallingDisplay({
     }
   }, [currentNumber, prevNum]);
 
-  const phrase = currentNumber ? TAMBOLA_CALLS[currentNumber] : null;
+  const phrase = currentNumber ? `Single number, ${currentNumber}` : null;
   const recent = calledNumbers.slice(-6).slice(0, -1).reverse();
 
   return (

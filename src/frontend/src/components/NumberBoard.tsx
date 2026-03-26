@@ -1,5 +1,4 @@
 import React from "react";
-import { TAMBOLA_CALLS } from "../utils/soundEffects";
 
 interface Props {
   calledNumbers: number[];
@@ -20,7 +19,7 @@ const COL_LABELS = [
 
 export default function NumberBoard({ calledNumbers, currentNumber }: Props) {
   const calledSet = new Set(calledNumbers);
-  const phrase = currentNumber ? TAMBOLA_CALLS[currentNumber] : null;
+  const phrase = currentNumber ? `Single number, ${currentNumber}` : null;
 
   return (
     <div className="w-full">

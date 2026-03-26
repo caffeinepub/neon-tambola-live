@@ -71,11 +71,12 @@ export function detectWins(
         checkAndAdd("Bottom Line", ticket.id, ticket.playerName);
       }
     }
+    // Full House: all ticket numbers called (require at least 10 numbers to avoid false positives)
     if (
       active.has("Full House") &&
       !wonTypes.has("Full House") &&
-      markedCount === nums.length &&
-      nums.length === 15
+      nums.length >= 10 &&
+      markedCount === nums.length
     ) {
       checkAndAdd("Full House", ticket.id, ticket.playerName);
     }

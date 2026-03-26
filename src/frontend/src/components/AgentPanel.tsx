@@ -123,7 +123,10 @@ export default function AgentPanel({
   const [localName, setLocalName] = useState(state.gameName);
   const [localLimit, setLocalLimit] = useState(state.ticketLimit);
   const [localPrizes, setLocalPrizes] = useState<string[]>(state.activePrizes);
-  const [localVoice, setLocalVoice] = useState(state.selectedVoice);
+  const [localVoice] = useState(state.selectedVoice);
+  const [localVoiceMode, setLocalVoiceMode] = useState(
+    state.voiceMode ?? "auto",
+  );
   const [localPreviewDuration, setLocalPreviewDuration] = useState(
     state.previewDuration ?? 5,
   );
@@ -149,6 +152,7 @@ export default function AgentPanel({
       ticketLimit: localLimit,
       activePrizes: localPrizes,
       selectedVoice: localVoice,
+      voiceMode: localVoiceMode,
       previewDuration: localPreviewDuration,
     });
   };
@@ -414,75 +418,68 @@ export default function AgentPanel({
               <h3 className="text-xs font-mono font-bold text-primary uppercase tracking-widest mb-4">
                 Number Calling Voice
               </h3>
-              {(() => {
-                const testVoice = (voiceName: string) => {
+              <p className="text-xs text-muted-foreground mb-3 font-mono">
+                Select voice gender. Each number is called once: "Single number
+                X"
+              </p>
+              <div
+                className="grid grid-cols-2 gap-2 mb-5"
+                data-ocid="setup.voice_mode.panel"
+              >
+                {(
+                  [
+                    { key: "male", label: "♂ Male", desc: "Male voice" },
+                    { key: "female", label: "♀ Female", desc: "Female voice" },
+                  ] as { key: string; label: string; desc: string }[]
+                ).map(({ key, label, desc }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setLocalVoiceMode(key)}
+                    data-ocid="setup.voice_mode.toggle"
+                    className={`rounded-xl px-3 py-2.5 border-2 text-xs font-mono font-bold text-left transition-all ${
+                      localVoiceMode === key
+                        ? "bg-primary/20 border-primary text-primary shadow-[0_0_8px] shadow-primary/30"
+                        : "border-border text-muted-foreground hover:border-primary/40 hover:text-foreground"
+                    }`}
+                  >
+                    <div>{label}</div>
+                    <div className="text-[10px] opacity-70 mt-0.5">{desc}</div>
+                  </button>
+                ))}
+              </div>
+              {/* Test voice */}
+              <button
+                type="button"
+                className="text-xs font-mono text-primary underline underline-offset-2 hover:text-primary/80"
+                onClick={() => {
                   window.speechSynthesis.cancel();
                   const utt = new SpeechSynthesisUtterance(
-                    "Lucky number seven, 7",
+                    "Single number, seven",
                   );
-                  const v = window.speechSynthesis
-                    .getVoices()
-                    .find((v) => v.name === voiceName);
-                  if (v) utt.voice = v;
+                  const all = window.speechSynthesis.getVoices();
+                  const FEMALE_RE =
+                    /female|zira|samantha|victoria|karen|moira|fiona|google uk english female/i;
+                  const voice =
+                    localVoiceMode === "female"
+                      ? (all.find((v) => FEMALE_RE.test(v.name)) ??
+                        all.find((v) => /en/i.test(v.lang)) ??
+                        null)
+                      : (all.find((v) =>
+                          /male|david|mark|james|google uk english male/i.test(
+                            v.name,
+                          ),
+                        ) ??
+                        all.find((v) => /en/i.test(v.lang)) ??
+                        null);
+                  if (voice) utt.voice = voice;
+                  utt.pitch = 1.0;
+                  utt.rate = 0.9;
                   window.speechSynthesis.speak(utt);
-                };
-                const allOptions = [{ name: "", lang: "" }, ...voices];
-                return (
-                  <div
-                    className="space-y-1 max-h-56 overflow-y-auto pr-1"
-                    data-ocid="setup.voice_select"
-                  >
-                    {allOptions.map((v) => {
-                      const isSelected = localVoice === v.name;
-                      const label =
-                        v.name === "" ? "Auto (Best Available)" : v.name;
-                      const lang = v.lang || "";
-                      return (
-                        <div
-                          key={v.name || "__auto__"}
-                          onClick={() => setLocalVoice(v.name)}
-                          onKeyDown={(e) =>
-                            e.key === "Enter" && setLocalVoice(v.name)
-                          }
-                          className={`flex items-center justify-between gap-2 px-3 py-2 rounded-lg cursor-pointer transition-all ${
-                            isSelected
-                              ? "bg-primary/20 border border-primary/50 text-primary"
-                              : "glass border border-border/30 text-muted-foreground hover:text-foreground hover:border-primary/30"
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 min-w-0">
-                            <div
-                              className={`w-3 h-3 rounded-full border-2 flex-shrink-0 ${isSelected ? "border-primary bg-primary" : "border-muted-foreground/50"}`}
-                            />
-                            <div className="min-w-0">
-                              <p className="text-xs font-medium truncate">
-                                {label}
-                              </p>
-                              {lang && (
-                                <p className="text-[10px] text-muted-foreground/70">
-                                  {lang}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                          {v.name !== "" && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                testVoice(v.name);
-                              }}
-                              className="flex-shrink-0 text-[10px] px-2 py-1 glass border border-accent/40 text-accent rounded hover:bg-accent/20 transition-colors font-mono"
-                            >
-                              ▶ Test
-                            </button>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })()}
+                }}
+              >
+                Test Voice
+              </button>
               {voices.length === 0 && (
                 <p className="text-xs text-muted-foreground mt-2">
                   No voices loaded yet. Voices appear after first page
@@ -978,12 +975,25 @@ export default function AgentPanel({
                     data-ocid={`bookings.item.${idx + 1}`}
                   >
                     <div>
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <span className="text-sm font-heading font-semibold text-foreground">
                           {req.playerName}
                         </span>
-                        <span className="text-xs font-mono text-muted-foreground">
-                          → Ticket #{req.ticketId}
+                        {/* Package type badge */}
+                        <span
+                          className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
+                            (req as any).packageType === "full"
+                              ? "text-yellow-400 border-yellow-400/40 bg-yellow-400/10"
+                              : (req as any).packageType === "half"
+                                ? "text-cyan-400 border-cyan-400/40 bg-cyan-400/10"
+                                : "text-purple-400 border-purple-400/40 bg-purple-400/10"
+                          }`}
+                        >
+                          {(req as any).packageType === "full"
+                            ? "Full Sheet (6 tickets)"
+                            : (req as any).packageType === "half"
+                              ? "Half Sheet (3 tickets)"
+                              : "Single Ticket"}
                         </span>
                         <span
                           className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
@@ -997,9 +1007,21 @@ export default function AgentPanel({
                           {req.status}
                         </span>
                       </div>
-                      <p className="text-xs text-muted-foreground font-mono">
+                      <div className="text-xs text-muted-foreground font-mono">
+                        {(req as any).packageType !== "single" &&
+                        (req as any).ticketIds?.length > 0 ? (
+                          <span>
+                            Tickets:{" "}
+                            {((req as any).ticketIds as number[])
+                              .map((id: number) => `#${id}`)
+                              .join(", ")}{" "}
+                            ·{" "}
+                          </span>
+                        ) : (
+                          <span>Ticket #{req.ticketId} · </span>
+                        )}
                         {new Date(req.timestamp).toLocaleTimeString()}
-                      </p>
+                      </div>
                     </div>
                     {req.status === "pending" && (
                       <div className="flex gap-2">

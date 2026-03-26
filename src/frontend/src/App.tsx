@@ -363,10 +363,47 @@ type GameState = ReturnType<typeof useGameState>["state"];
 function BookingPhase({
   state,
   onBookingRequest,
-}: { state: GameState; onBookingRequest: (id: number, name: string) => void }) {
-  const booked = state.tickets.filter(
+}: {
+  state: GameState;
+  onBookingRequest: (playerName: string, ticketIds: number[]) => void;
+}) {
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [playerName, setPlayerName] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+
+  const visibleTickets =
+    state.ticketLimit > 0
+      ? state.tickets.slice(0, state.ticketLimit)
+      : state.tickets;
+
+  const takenIds = new Set(
+    state.bookingRequests
+      .filter((r) => r.status !== "rejected")
+      .flatMap((r) => r.ticketIds ?? [r.ticketId]),
+  );
+
+  const booked = visibleTickets.filter(
     (t) => !t.playerName.startsWith("Player "),
   ).length;
+
+  const toggleTicket = (id: number) => {
+    if (takenIds.has(id)) return;
+    setSelectedIds((prev) => {
+      if (prev.includes(id)) return prev.filter((x) => x !== id);
+      if (prev.length >= 6) return prev;
+      return [...prev, id];
+    });
+  };
+
+  const handleSubmit = () => {
+    if (!playerName.trim() || selectedIds.length === 0) return;
+    onBookingRequest(playerName.trim(), [...selectedIds]);
+    setSelectedIds([]);
+    setPlayerName("");
+    setSubmitted(true);
+    setTimeout(() => setSubmitted(false), 3500);
+  };
+
   return (
     <PhaseWrapper>
       <div className="text-center mb-8">
@@ -374,11 +411,11 @@ function BookingPhase({
           🎟️ Ticket Booking Open
         </h2>
         <p className="text-muted-foreground text-sm mb-1">
-          {booked} of {state.tickets.length} tickets booked
+          {booked} of {visibleTickets.length} tickets booked
         </p>
         {state.ticketLimit > 0 && (
           <p className="text-xs text-muted-foreground/70 mb-4">
-            Max {state.ticketLimit} bookings allowed
+            Tickets available: {visibleTickets.length}
           </p>
         )}
         {state.startTime && (
@@ -390,15 +427,98 @@ function BookingPhase({
           </div>
         )}
       </div>
-      <TicketsGrid
-        tickets={state.tickets}
-        calledNumbers={[]}
-        currentNumber={null}
-        winners={[]}
-        bookingRequests={state.bookingRequests}
-        onBookingRequest={onBookingRequest}
-        bookingMode
-      />
+
+      {/* Ticket selector */}
+      <div className="glass rounded-2xl p-5 mb-6" data-ocid="booking.panel">
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+          <h3 className="font-heading font-bold text-sm text-foreground">
+            🎫 Select Your Tickets (max 6)
+          </h3>
+          <span
+            className={`text-xs font-mono font-bold px-3 py-1 rounded-full border ${
+              selectedIds.length > 0
+                ? "bg-primary/20 border-primary/50 text-primary"
+                : "border-border text-muted-foreground"
+            }`}
+            data-ocid="booking.selected.panel"
+          >
+            {selectedIds.length} ticket{selectedIds.length !== 1 ? "s" : ""}{" "}
+            selected
+          </span>
+        </div>
+
+        <div className="flex flex-wrap gap-2 mb-5 max-h-64 overflow-y-auto pr-1">
+          {visibleTickets.map((ticket) => {
+            const isTaken = takenIds.has(ticket.id);
+            const isSelected = selectedIds.includes(ticket.id);
+            return (
+              <button
+                key={ticket.id}
+                type="button"
+                disabled={isTaken}
+                onClick={() => toggleTicket(ticket.id)}
+                data-ocid="booking.ticket.toggle"
+                title={isTaken ? "Already booked" : `Ticket #${ticket.id}`}
+                className={`w-11 h-11 rounded-lg text-sm font-mono font-bold transition-all border-2 select-none ${
+                  isTaken
+                    ? "bg-rose-500/10 text-rose-500/40 border-rose-500/20 cursor-not-allowed line-through"
+                    : isSelected
+                      ? "bg-primary/30 text-primary border-primary shadow-[0_0_8px] shadow-primary/50 scale-110"
+                      : "bg-emerald-400/10 text-emerald-300 border-emerald-400/30 hover:bg-emerald-400/20 hover:border-emerald-400/60 cursor-pointer"
+                }`}
+              >
+                {ticket.id}
+              </button>
+            );
+          })}
+        </div>
+
+        {selectedIds.length > 0 && (
+          <p className="text-xs text-primary font-mono mb-4">
+            Selected: {selectedIds.sort((a, b) => a - b).join(", ")}
+          </p>
+        )}
+
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={playerName}
+            onChange={(e) => setPlayerName(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+            placeholder="Your name..."
+            className="flex-1 bg-background/60 border border-border rounded-lg px-3 py-2 text-sm font-mono text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary/60"
+            data-ocid="booking.input"
+          />
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={!playerName.trim() || selectedIds.length === 0}
+            data-ocid="booking.submit_button"
+            className="px-5 py-2 rounded-lg bg-gradient-to-r from-primary/80 to-accent/80 text-white font-mono font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed hover:from-primary hover:to-accent transition-all shadow-[0_0_12px] shadow-primary/30"
+          >
+            Request
+          </button>
+        </div>
+
+        {submitted && (
+          <p
+            className="text-xs text-emerald-400 font-mono mt-2"
+            data-ocid="booking.success_state"
+          >
+            ✓ Booking request submitted! Awaiting admin approval.
+          </p>
+        )}
+      </div>
+
+      {visibleTickets.length > 0 && (
+        <TicketsGrid
+          tickets={visibleTickets}
+          calledNumbers={[]}
+          currentNumber={null}
+          winners={[]}
+          bookingRequests={state.bookingRequests}
+        />
+      )}
     </PhaseWrapper>
   );
 }

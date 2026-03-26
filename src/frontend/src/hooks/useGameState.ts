@@ -116,39 +116,62 @@ export function useGameState() {
     update({ isPublished: true, phase: "booking" });
   }, [update]);
 
-  const callNumber = useCallback((s: GameState): GameState | null => {
-    const uncalled: number[] = [];
-    for (let n = 1; n <= 90; n++) {
-      if (!s.calledNumbers.includes(n)) uncalled.push(n);
-    }
-    if (uncalled.length === 0) return null;
-    const num = uncalled[Math.floor(Math.random() * uncalled.length)];
-    const calledNumbers = [...s.calledNumbers, num];
-    playCallSound();
-    speakNumber(num, s.selectedVoice);
-    const newWins = detectWins(
-      s.tickets,
-      calledNumbers,
-      s.winners,
-      s.activePrizes,
-    );
-    if (newWins.length > 0) {
-      playWinnerSound();
-      for (const w of newWins)
-        speakWinner(w.winType, w.playerName, w.ticketId, s.selectedVoice);
-    }
-    const winners = [...s.winners, ...newWins];
-    const hasFullHouse = newWins.some((w) => w.winType === "Full House");
-    // Also end if all active prizes that can end the game are won
-    const allActivePrizesWon = s.activePrizes.every((p) =>
-      winners.some((w) => w.winType === p),
-    );
-    const phase: GamePhase =
-      hasFullHouse || calledNumbers.length === 90 || allActivePrizesWon
+  // Determines if game should end based on winners and active prizes
+  const shouldEndGame = useCallback(
+    (
+      winners: Winner[],
+      activePrizes: string[],
+      calledCount: number,
+    ): boolean => {
+      // Always end when all 90 numbers are called
+      if (calledCount >= 90) return true;
+      // End when Full House is won (it's always the final prize)
+      if (winners.some((w) => w.winType === "Full House")) return true;
+      // End when all active prizes have been won
+      if (
+        activePrizes.length > 0 &&
+        activePrizes.every((p) => winners.some((w) => w.winType === p))
+      )
+        return true;
+      return false;
+    },
+    [],
+  );
+
+  const callNumber = useCallback(
+    (s: GameState): GameState | null => {
+      const uncalled: number[] = [];
+      for (let n = 1; n <= 90; n++) {
+        if (!s.calledNumbers.includes(n)) uncalled.push(n);
+      }
+      if (uncalled.length === 0) return null;
+      const num = uncalled[Math.floor(Math.random() * uncalled.length)];
+      const calledNumbers = [...s.calledNumbers, num];
+      playCallSound();
+      speakNumber(num, s.selectedVoice, s.voiceMode);
+      const newWins = detectWins(
+        s.tickets,
+        calledNumbers,
+        s.winners,
+        s.activePrizes,
+      );
+      if (newWins.length > 0) {
+        playWinnerSound();
+        for (const w of newWins)
+          speakWinner(w.winType, w.playerName, w.ticketId, s.selectedVoice);
+      }
+      const winners = [...s.winners, ...newWins];
+      const phase: GamePhase = shouldEndGame(
+        winners,
+        s.activePrizes,
+        calledNumbers.length,
+      )
         ? "ended"
         : s.phase;
-    return { ...s, calledNumbers, currentNumber: num, winners, phase };
-  }, []);
+      return { ...s, calledNumbers, currentNumber: num, winners, phase };
+    },
+    [shouldEndGame],
+  );
 
   const callNextNumber = useCallback(() => {
     setState((prev) => {
@@ -162,39 +185,52 @@ export function useGameState() {
     });
   }, [callNumber]);
 
-  const manualCallNumber = useCallback((n: number) => {
-    setState((prev) => {
-      if (prev.calledNumbers.includes(n)) return prev;
-      const calledNumbers = [...prev.calledNumbers, n];
-      playCallSound();
-      speakNumber(n, prev.selectedVoice);
-      const newWins = detectWins(
-        prev.tickets,
-        calledNumbers,
-        prev.winners,
-        prev.activePrizes,
-      );
-      if (newWins.length > 0) {
-        playWinnerSound();
-        for (const w of newWins)
-          speakWinner(w.winType, w.playerName, w.ticketId, prev.selectedVoice);
-      }
-      const winners = [...prev.winners, ...newWins];
-      const hasFullHouse = newWins.some((w) => w.winType === "Full House");
-      const allActivePrizesWon = prev.activePrizes.every((p) =>
-        winners.some((w) => w.winType === p),
-      );
-      const phase: GamePhase =
-        hasFullHouse || calledNumbers.length === 90 || allActivePrizesWon
+  const manualCallNumber = useCallback(
+    (n: number) => {
+      setState((prev) => {
+        if (prev.calledNumbers.includes(n)) return prev;
+        const calledNumbers = [...prev.calledNumbers, n];
+        playCallSound();
+        speakNumber(n, prev.selectedVoice, prev.voiceMode);
+        const newWins = detectWins(
+          prev.tickets,
+          calledNumbers,
+          prev.winners,
+          prev.activePrizes,
+        );
+        if (newWins.length > 0) {
+          playWinnerSound();
+          for (const w of newWins)
+            speakWinner(
+              w.winType,
+              w.playerName,
+              w.ticketId,
+              prev.selectedVoice,
+            );
+        }
+        const winners = [...prev.winners, ...newWins];
+        const phase: GamePhase = shouldEndGame(
+          winners,
+          prev.activePrizes,
+          calledNumbers.length,
+        )
           ? "ended"
           : prev.phase;
-      const next = { ...prev, calledNumbers, currentNumber: n, winners, phase };
-      setNewWinners(newWins);
-      if (phase === "ended") setAutoCallEnabled(false);
-      saveState(next);
-      return next;
-    });
-  }, []);
+        const next = {
+          ...prev,
+          calledNumbers,
+          currentNumber: n,
+          winners,
+          phase,
+        };
+        setNewWinners(newWins);
+        if (phase === "ended") setAutoCallEnabled(false);
+        saveState(next);
+        return next;
+      });
+    },
+    [shouldEndGame],
+  );
 
   const setBooking = useCallback(() => update({ phase: "booking" }), [update]);
   const startPreview = useCallback(
@@ -206,7 +242,7 @@ export function useGameState() {
       const bookedIds = new Set(
         prev.bookingRequests
           .filter((r) => r.status === "approved")
-          .map((r) => r.ticketId),
+          .flatMap((r) => r.ticketIds ?? [r.ticketId]),
       );
       const tickets = prev.tickets.filter((t) => bookedIds.has(t.id));
       const next = { ...prev, phase: "active" as GamePhase, tickets };
@@ -286,21 +322,42 @@ export function useGameState() {
   );
 
   const addBookingRequest = useCallback(
-    (ticketId: number, playerName: string) => {
+    (playerName: string, ticketIds: number[]) => {
       setState((prev) => {
-        // Check ticket limit
-        const approvedCount = prev.bookingRequests.filter(
-          (r) => r.status === "approved",
-        ).length;
-        if (approvedCount >= prev.ticketLimit) return prev;
+        // Compute visible tickets based on ticketLimit
+        const visibleTickets =
+          prev.ticketLimit > 0
+            ? prev.tickets.slice(0, prev.ticketLimit)
+            : prev.tickets;
+        const visibleIds = new Set(visibleTickets.map((t) => t.id));
 
-        const existing = prev.bookingRequests.find(
-          (r) => r.ticketId === ticketId && r.status === "pending",
+        // Reject if any requested ticket is outside the visible set
+        if (ticketIds.some((id) => !visibleIds.has(id))) return prev;
+
+        // Check all requested tickets are available (not already taken)
+        const takenIds = new Set(
+          prev.bookingRequests
+            .filter((r) => r.status !== "rejected")
+            .flatMap((r) => r.ticketIds ?? [r.ticketId]),
         );
-        if (existing) return prev;
+        if (ticketIds.some((id) => takenIds.has(id))) return prev;
+
+        // Auto-determine package type by count
+        const count = ticketIds.length;
+        const packageType =
+          count === 1
+            ? "single"
+            : count === 3
+              ? "half"
+              : count === 6
+                ? "full"
+                : "custom";
+
         const req: BookingRequest = {
           id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-          ticketId,
+          ticketId: ticketIds[0],
+          ticketIds,
+          packageType,
           playerName,
           status: "pending",
           timestamp: Date.now(),
@@ -323,8 +380,9 @@ export function useGameState() {
       const bookingRequests = prev.bookingRequests.map((r) =>
         r.id === requestId ? { ...r, status: "approved" as const } : r,
       );
+      const allTicketIds = req.ticketIds ?? [req.ticketId];
       const tickets = prev.tickets.map((t) =>
-        t.id === req.ticketId ? { ...t, playerName: req.playerName } : t,
+        allTicketIds.includes(t.id) ? { ...t, playerName: req.playerName } : t,
       );
       const next = { ...prev, bookingRequests, tickets };
       saveState(next);
@@ -361,7 +419,7 @@ export function useGameState() {
             const bookedIds = new Set(
               prev.bookingRequests
                 .filter((r) => r.status === "approved")
-                .map((r) => r.ticketId),
+                .flatMap((r) => r.ticketIds ?? [r.ticketId]),
             );
             tickets = tickets.filter((t) => bookedIds.has(t.id));
           }
