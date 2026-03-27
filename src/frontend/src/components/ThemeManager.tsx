@@ -13,6 +13,8 @@ interface Theme {
   bgPhotoData?: string; // base64 data URL for photo backgrounds
   ticketBg: string;
   ticketBorder: string;
+  callBoardBg?: string; // base64 data URL for call board background photo
+  callBoardBgType?: "default" | "photo";
 }
 
 const STORAGE_KEY = "tambola_themes";
@@ -27,6 +29,7 @@ const PRESET_THEMES: Theme[] = [
     bgColor2: "#16213e",
     ticketBg: "#FFE135",
     ticketBorder: "#000000",
+    callBoardBgType: "default",
   },
   {
     id: "preset-neon-dark",
@@ -36,6 +39,7 @@ const PRESET_THEMES: Theme[] = [
     bgColor2: "#1a0a2e",
     ticketBg: "#FFE135",
     ticketBorder: "rgba(139,92,246,0.4)",
+    callBoardBgType: "default",
   },
   {
     id: "preset-ocean-blue",
@@ -45,6 +49,7 @@ const PRESET_THEMES: Theme[] = [
     bgColor2: "#0a2744",
     ticketBg: "rgba(5,30,70,0.75)",
     ticketBorder: "rgba(0,200,255,0.4)",
+    callBoardBgType: "default",
   },
   {
     id: "preset-fire-red",
@@ -54,6 +59,7 @@ const PRESET_THEMES: Theme[] = [
     bgColor2: "#2e0a0a",
     ticketBg: "rgba(60,10,10,0.75)",
     ticketBorder: "rgba(239,68,68,0.5)",
+    callBoardBgType: "default",
   },
   {
     id: "preset-forest-green",
@@ -63,6 +69,7 @@ const PRESET_THEMES: Theme[] = [
     bgColor2: "#0a2e14",
     ticketBg: "rgba(5,50,20,0.75)",
     ticketBorder: "rgba(34,197,94,0.4)",
+    callBoardBgType: "default",
   },
   {
     id: "preset-royal-gold",
@@ -72,6 +79,7 @@ const PRESET_THEMES: Theme[] = [
     bgColor2: "#2e2000",
     ticketBg: "rgba(50,35,0,0.75)",
     ticketBorder: "rgba(234,179,8,0.5)",
+    callBoardBgType: "default",
   },
 ];
 
@@ -88,6 +96,16 @@ export function applyTheme(theme: Theme) {
   root.style.setProperty("--theme-bg", bg);
   root.style.setProperty("--theme-ticket-bg", theme.ticketBg);
   root.style.setProperty("--theme-ticket-border", theme.ticketBorder);
+
+  // Call board background
+  if (theme.callBoardBgType === "photo" && theme.callBoardBg) {
+    root.style.setProperty(
+      "--theme-callboard-bg",
+      `url(${theme.callBoardBg}) center/cover no-repeat`,
+    );
+  } else {
+    root.style.setProperty("--theme-callboard-bg", "");
+  }
 }
 
 function loadThemes(): Theme[] {
@@ -108,7 +126,9 @@ export default function ThemeManager() {
     localStorage.getItem(ACTIVE_KEY),
   );
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const callBoardPhotoRef = useRef<HTMLInputElement>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [callBoardPreview, setCallBoardPreview] = useState<string | null>(null);
 
   const [form, setForm] = useState<Omit<Theme, "id">>({
     name: "",
@@ -118,6 +138,8 @@ export default function ThemeManager() {
     bgPhotoData: undefined,
     ticketBg: "#FFE135",
     ticketBorder: "#8b5cf6",
+    callBoardBgType: "default",
+    callBoardBg: undefined,
   });
 
   // Re-apply active theme on mount
@@ -160,6 +182,20 @@ export default function ThemeManager() {
     reader.readAsDataURL(file);
   };
 
+  const handleCallBoardPhotoUpload = (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const data = ev.target?.result as string;
+      setCallBoardPreview(data);
+      setForm((f) => ({ ...f, callBoardBgType: "photo", callBoardBg: data }));
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleCreate = () => {
     if (!form.name.trim()) return;
     if (form.bgType === "photo" && !form.bgPhotoData) return;
@@ -178,9 +214,13 @@ export default function ThemeManager() {
       bgPhotoData: undefined,
       ticketBg: "#FFE135",
       ticketBorder: "#8b5cf6",
+      callBoardBgType: "default",
+      callBoardBg: undefined,
     });
     setPhotoPreview(null);
+    setCallBoardPreview(null);
     if (photoInputRef.current) photoInputRef.current.value = "";
+    if (callBoardPhotoRef.current) callBoardPhotoRef.current.value = "";
   };
 
   const allThemes = [...PRESET_THEMES, ...themes];
@@ -228,6 +268,11 @@ export default function ThemeManager() {
                     {theme.name}
                     {theme.bgType === "photo" && (
                       <span className="ml-2 text-xs text-accent">📷 Photo</span>
+                    )}
+                    {theme.callBoardBgType === "photo" && (
+                      <span className="ml-1 text-xs text-cyan-400">
+                        🎯 Board Photo
+                      </span>
                     )}
                   </p>
                   {activeId === theme.id && (
@@ -461,6 +506,90 @@ export default function ThemeManager() {
                 />
               </div>
             </div>
+          </div>
+
+          {/* Call Board Background section */}
+          <div className="space-y-2 pt-2 border-t border-border/30">
+            <Label className="text-xs text-muted-foreground uppercase tracking-wider">
+              🎯 Call Board Background
+            </Label>
+            <div className="flex gap-3">
+              {(["default", "photo"] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => {
+                    setForm((f) => ({ ...f, callBoardBgType: t }));
+                    if (t === "default") {
+                      setCallBoardPreview(null);
+                      setForm((f) => ({
+                        ...f,
+                        callBoardBgType: "default",
+                        callBoardBg: undefined,
+                      }));
+                    }
+                  }}
+                  className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                    form.callBoardBgType === t
+                      ? "bg-accent/20 text-accent border border-accent/40"
+                      : "glass text-muted-foreground border border-border/40"
+                  }`}
+                  data-ocid="theme.toggle"
+                >
+                  {t === "photo" ? "📷 Photo" : "Default Glass"}
+                </button>
+              ))}
+            </div>
+
+            {form.callBoardBgType === "photo" && (
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  className="border-2 border-dashed border-accent/40 rounded-xl p-3 text-center cursor-pointer hover:border-accent/60 transition-colors w-full"
+                  onClick={() => callBoardPhotoRef.current?.click()}
+                >
+                  {callBoardPreview ? (
+                    <img
+                      src={callBoardPreview}
+                      alt="Call board preview"
+                      className="max-h-24 mx-auto rounded-lg object-cover"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center gap-2 py-3">
+                      <Upload className="w-6 h-6 text-accent/60" />
+                      <p className="text-xs text-muted-foreground">
+                        Upload call board background photo
+                      </p>
+                    </div>
+                  )}
+                </button>
+                <input
+                  ref={callBoardPhotoRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleCallBoardPhotoUpload}
+                />
+                {callBoardPreview && (
+                  <button
+                    type="button"
+                    className="text-xs text-destructive hover:underline"
+                    onClick={() => {
+                      setCallBoardPreview(null);
+                      setForm((f) => ({
+                        ...f,
+                        callBoardBg: undefined,
+                        callBoardBgType: "default",
+                      }));
+                      if (callBoardPhotoRef.current)
+                        callBoardPhotoRef.current.value = "";
+                    }}
+                  >
+                    Remove call board photo
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Preview */}

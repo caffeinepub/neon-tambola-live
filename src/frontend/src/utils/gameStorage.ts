@@ -22,6 +22,8 @@ export interface GameSettings {
   voiceMode: string;
   startTime: string | null;
   previewDuration: number; // minutes
+  ticketDisplaySize: "small" | "medium" | "large";
+  ticketsMinimized: boolean;
 }
 
 export interface GameState {
@@ -41,6 +43,8 @@ export interface GameState {
   voiceMode: string;
   isPublished: boolean;
   previewDuration: number; // minutes, default 5
+  ticketDisplaySize: "small" | "medium" | "large";
+  ticketsMinimized: boolean;
 }
 
 const KEY = "tambola_game_state_v4";
@@ -70,6 +74,8 @@ export const defaultState: GameState = {
   voiceMode: "male",
   isPublished: false,
   previewDuration: 5,
+  ticketDisplaySize: "medium",
+  ticketsMinimized: false,
 };
 
 export function loadState(): GameState {
@@ -78,27 +84,25 @@ export function loadState(): GameState {
     if (raw) {
       const parsed = JSON.parse(raw) as GameState;
       const state = { ...defaultState, ...parsed };
-      // Migrate old booking requests that lack new fields
-      state.bookingRequests = state.bookingRequests.map((r: any) => ({
-        ...r,
-        packageType: r.packageType ?? "single",
-        ticketIds: r.ticketIds ?? [r.ticketId],
-      }));
-      if (state.tickets.length > 0) {
-        state.tickets = state.tickets.map((t) =>
-          isValidTicket(t.grid) ? t : repairTicket(t),
-        );
-      }
+      // Repair tickets
+      state.tickets = state.tickets.map((t) => {
+        if (!isValidTicket(t.grid)) {
+          return repairTicket(t);
+        }
+        return t;
+      });
       return state;
     }
-  } catch {}
+  } catch {
+    // ignore
+  }
   return { ...defaultState };
 }
 
 export function saveState(state: GameState) {
-  localStorage.setItem(KEY, JSON.stringify(state));
-}
-
-export function clearState() {
-  localStorage.removeItem(KEY);
+  try {
+    localStorage.setItem(KEY, JSON.stringify(state));
+  } catch {
+    // ignore
+  }
 }

@@ -3,7 +3,6 @@ import React from "react";
 import { useEffect, useState } from "react";
 import AgentLogin from "./components/AgentLogin";
 import AgentPanel from "./components/AgentPanel";
-import CallingDisplay from "./components/CallingDisplay";
 import Confetti from "./components/Confetti";
 import NumberBoard from "./components/NumberBoard";
 import { applyTheme } from "./components/ThemeManager";
@@ -280,7 +279,7 @@ export default function App() {
 
       <footer className="py-4 text-center">
         <p className="text-xs text-muted-foreground">
-          © {new Date().getFullYear()}. Built with ❤️ using{" "}
+          &copy; {new Date().getFullYear()}. Built with ❤️ using{" "}
           <a
             href={`https://caffeine.ai?utm_source=caffeine-footer&utm_medium=referral&utm_content=${encodeURIComponent(window.location.hostname)}`}
             target="_blank"
@@ -408,7 +407,7 @@ function BookingPhase({
     <PhaseWrapper>
       <div className="text-center mb-8">
         <h2 className="text-3xl font-heading font-black text-foreground neon-text-purple mb-2">
-          🎟️ Ticket Booking Open
+          🏟️ Ticket Booking Open
         </h2>
         <p className="text-muted-foreground text-sm mb-1">
           {booked} of {visibleTickets.length} tickets booked
@@ -524,6 +523,11 @@ function BookingPhase({
 }
 
 function PreviewPhase({ state }: { state: GameState }) {
+  // Get call board style from CSS var
+  const callBoardStyle: React.CSSProperties = {
+    background: "var(--theme-callboard-bg, transparent)",
+  };
+
   return (
     <PhaseWrapper>
       <div className="mb-6 glass rounded-2xl px-5 py-3 border-blue-400/20 flex items-center gap-3 flex-wrap">
@@ -542,68 +546,83 @@ function PreviewPhase({ state }: { state: GameState }) {
           </div>
         )}
       </div>
+
+      {/* Single unified calling + number board + search */}
       <div className="grid lg:grid-cols-[1fr_1.4fr] gap-6">
-        <div className="space-y-6">
-          <CallingDisplay
-            currentNumber={state.currentNumber}
-            calledNumbers={state.calledNumbers}
-            phase={state.phase}
-          />
-          <WinnerBoard
-            winners={state.winners}
-            tickets={state.tickets}
-            calledNumbers={state.calledNumbers}
-          />
+        <NumberBoard
+          calledNumbers={state.calledNumbers}
+          currentNumber={state.currentNumber}
+          callBoardStyle={callBoardStyle}
+        />
+        <TicketsGrid
+          tickets={state.tickets}
+          calledNumbers={state.calledNumbers}
+          currentNumber={state.currentNumber}
+          winners={state.winners}
+          ticketDisplaySize={state.ticketDisplaySize}
+          ticketsMinimized={state.ticketsMinimized}
+          searchOnly
+        />
+      </div>
+
+      {/* Winner board at the bottom */}
+      <div className="mt-8">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="flex-1 h-px bg-border/40" />
+          <span className="text-sm font-heading font-bold text-muted-foreground uppercase tracking-widest">
+            ✦ Winners Board
+          </span>
+          <div className="flex-1 h-px bg-border/40" />
         </div>
-        <div className="space-y-6">
-          <NumberBoard
-            calledNumbers={state.calledNumbers}
-            currentNumber={state.currentNumber}
-          />
-          <TicketsGrid
-            tickets={state.tickets}
-            calledNumbers={state.calledNumbers}
-            currentNumber={state.currentNumber}
-            winners={state.winners}
-            searchOnly
-          />
-        </div>
+        <WinnerBoard
+          winners={state.winners}
+          tickets={state.tickets}
+          calledNumbers={state.calledNumbers}
+        />
       </div>
     </PhaseWrapper>
   );
 }
 
 function ActivePhase({ state }: { state: GameState }) {
+  const callBoardStyle: React.CSSProperties = {
+    background: "var(--theme-callboard-bg, transparent)",
+  };
+
   return (
     <PhaseWrapper>
+      {/* Single unified calling + number board + search */}
       <div className="grid lg:grid-cols-[1fr_1.4fr] gap-6">
-        <div className="space-y-6">
-          <div className="glass rounded-2xl">
-            <CallingDisplay
-              currentNumber={state.currentNumber}
-              calledNumbers={state.calledNumbers}
-              phase={state.phase}
-            />
-          </div>
-          <WinnerBoard
-            winners={state.winners}
-            tickets={state.tickets}
-            calledNumbers={state.calledNumbers}
-          />
+        <NumberBoard
+          calledNumbers={state.calledNumbers}
+          currentNumber={state.currentNumber}
+          callBoardStyle={callBoardStyle}
+        />
+        <TicketsGrid
+          tickets={state.tickets}
+          calledNumbers={state.calledNumbers}
+          currentNumber={state.currentNumber}
+          winners={state.winners}
+          ticketDisplaySize={state.ticketDisplaySize}
+          ticketsMinimized={state.ticketsMinimized}
+          searchOnly
+        />
+      </div>
+
+      {/* Winner board at the bottom */}
+      <div className="mt-8">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="flex-1 h-px bg-border/40" />
+          <span className="text-sm font-heading font-bold text-muted-foreground uppercase tracking-widest">
+            ✦ Winners Board
+          </span>
+          <div className="flex-1 h-px bg-border/40" />
         </div>
-        <div className="space-y-6">
-          <NumberBoard
-            calledNumbers={state.calledNumbers}
-            currentNumber={state.currentNumber}
-          />
-          <TicketsGrid
-            tickets={state.tickets}
-            calledNumbers={state.calledNumbers}
-            currentNumber={state.currentNumber}
-            winners={state.winners}
-            searchOnly
-          />
-        </div>
+        <WinnerBoard
+          winners={state.winners}
+          tickets={state.tickets}
+          calledNumbers={state.calledNumbers}
+        />
       </div>
     </PhaseWrapper>
   );
@@ -634,6 +653,8 @@ function EndedPhase({ state }: { state: GameState }) {
             calledNumbers={state.calledNumbers}
             currentNumber={state.currentNumber}
             winners={state.winners}
+            ticketDisplaySize={state.ticketDisplaySize}
+            ticketsMinimized={state.ticketsMinimized}
             searchOnly
           />
         </div>

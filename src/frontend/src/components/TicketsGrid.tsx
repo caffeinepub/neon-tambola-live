@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Search } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { useState } from "react";
 import type { BookingRequest } from "../utils/gameStorage";
 import type { Ticket } from "../utils/ticketGenerator";
@@ -24,6 +24,8 @@ interface Props {
   onBookingRequest?: (ticketId: number, playerName: string) => void;
   searchOnly?: boolean;
   bookingMode?: boolean;
+  ticketDisplaySize?: "small" | "medium" | "large";
+  ticketsMinimized?: boolean;
 }
 
 export default function TicketsGrid({
@@ -35,11 +37,48 @@ export default function TicketsGrid({
   onBookingRequest,
   searchOnly = false,
   bookingMode = false,
+  ticketDisplaySize = "medium",
+  ticketsMinimized = false,
 }: Props) {
   const [search, setSearch] = useState("");
+  const [pinnedTicketIds, setPinnedTicketIds] = useState<number[]>([]);
   const [dialogTicket, setDialogTicket] = useState<Ticket | null>(null);
   const [playerName, setPlayerName] = useState("");
   const [submitted, setSubmitted] = useState(false);
+
+  const getSearchMatches = (): Ticket[] => {
+    if (!search.trim()) return [];
+    const trimmed = search.trim();
+    const asNum = Number(trimmed);
+    if (!Number.isNaN(asNum) && String(asNum) === trimmed) {
+      return tickets.filter((t) => t.id === asNum);
+    }
+    return tickets.filter((t) =>
+      t.playerName.toLowerCase().includes(trimmed.toLowerCase()),
+    );
+  };
+
+  const handleSearch = () => {
+    const matches = getSearchMatches();
+    if (matches.length === 0) return;
+    const newIds = matches
+      .map((t) => t.id)
+      .filter((id) => !pinnedTicketIds.includes(id));
+    if (newIds.length > 0) {
+      setPinnedTicketIds((prev) => [...prev, ...newIds]);
+    }
+    setSearch("");
+  };
+
+  const removeTicket = (id: number) => {
+    setPinnedTicketIds((prev) => prev.filter((x) => x !== id));
+  };
+
+  const clearAll = () => setPinnedTicketIds([]);
+
+  const pinnedTickets = pinnedTicketIds
+    .map((id) => tickets.find((t) => t.id === id))
+    .filter(Boolean) as Ticket[];
 
   const getFiltered = () => {
     if (!search.trim()) return searchOnly ? [] : tickets;
@@ -71,87 +110,132 @@ export default function TicketsGrid({
     }, 1500);
   };
 
-  const isSearchResult = search.trim() !== "" && filtered.length > 0;
-
   return (
     <div className="w-full">
-      <div className="relative mb-5">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <input
-          type="text"
-          placeholder={
-            searchOnly
-              ? "Enter ticket number or your name..."
-              : "Search ticket # or name..."
-          }
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full glass rounded-full pl-10 pr-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-primary/60 focus:shadow-neon-purple transition-all"
-          data-ocid="tickets.search_input"
-        />
-        {search && (
+      {/* Search bar */}
+      <div className="relative mb-4 flex gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder={
+              searchOnly
+                ? "Enter ticket number or your name..."
+                : "Search ticket # or name..."
+            }
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                if (searchOnly) handleSearch();
+              }
+            }}
+            className="w-full glass rounded-full pl-10 pr-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-primary/60 focus:shadow-neon-purple transition-all"
+            data-ocid="tickets.search_input"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+        {searchOnly && search && (
           <button
             type="button"
-            onClick={() => setSearch("")}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            onClick={handleSearch}
+            className="px-4 py-2 rounded-full text-xs font-mono font-bold bg-primary/20 hover:bg-primary/40 text-primary border border-primary/30 transition-all whitespace-nowrap"
+            data-ocid="tickets.primary_button"
           >
-            ✕
+            Add to View
           </button>
         )}
       </div>
 
-      {searchOnly && !search ? (
-        <div
-          className="text-center py-16 animate-slide-up"
-          data-ocid="tickets.empty_state"
-        >
-          <div className="text-5xl mb-4 animate-float">🎫</div>
-          <p className="text-muted-foreground font-body">
-            Search by ticket number or your name to view your ticket
-          </p>
-        </div>
-      ) : filtered.length === 0 ? (
-        <div
-          className="text-center py-10 text-muted-foreground"
-          data-ocid="tickets.empty_state"
-        >
-          No tickets found for &ldquo;{search}&rdquo;
-        </div>
-      ) : isSearchResult ? (
-        // Large single-column view for search results
-        <div className="space-y-6 animate-slide-up">
-          {filtered.map((t) => (
-            <div key={t.id}>
-              <div className="flex items-center gap-3 mb-3">
-                <span className="text-lg font-heading font-black text-primary neon-text-purple">
-                  Ticket #{t.id}
-                </span>
-                <span className="text-sm text-foreground font-semibold">
-                  {t.playerName && !t.playerName.startsWith("Player ")
-                    ? t.playerName
-                    : "Unbooked"}
-                </span>
-              </div>
-              <TicketCard
-                ticket={t}
-                calledNumbers={calledNumbers}
-                currentNumber={currentNumber}
-                winners={winners}
-                showBookingBadge={bookingMode}
-                isPending={!!getPendingRequest(t.id)}
-                onBook={
-                  bookingMode && onBookingRequest
-                    ? () => setDialogTicket(t)
-                    : undefined
-                }
-                large={true}
-              />
+      {/* Pinned / accumulated tickets (searchOnly mode) */}
+      {searchOnly &&
+        (pinnedTickets.length === 0 ? (
+          <div
+            className="text-center py-16 animate-slide-up"
+            data-ocid="tickets.empty_state"
+          >
+            <div className="text-5xl mb-4 animate-float">🎫</div>
+            <p className="text-muted-foreground font-body">
+              Search by ticket number or your name to view your ticket
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4 animate-slide-up">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground font-mono">
+                {pinnedTickets.length} ticket
+                {pinnedTickets.length !== 1 ? "s" : ""} shown
+              </span>
+              <button
+                type="button"
+                onClick={clearAll}
+                className="text-xs text-destructive hover:underline font-mono"
+                data-ocid="tickets.secondary_button"
+              >
+                Clear All
+              </button>
             </div>
-          ))}
-        </div>
-      ) : (
-        <>
-          {!searchOnly && (
+            {pinnedTickets.map((t) => (
+              <div key={t.id} className="relative">
+                <button
+                  type="button"
+                  onClick={() => removeTicket(t.id)}
+                  className="absolute top-2 right-2 z-10 w-6 h-6 rounded-full bg-destructive/20 hover:bg-destructive/40 text-destructive flex items-center justify-center transition-all"
+                  aria-label="Remove ticket"
+                  data-ocid="tickets.close_button"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="text-base font-heading font-black text-primary neon-text-purple">
+                    Ticket #{t.id}
+                  </span>
+                  <span className="text-sm text-foreground font-semibold">
+                    {t.playerName && !t.playerName.startsWith("Player ")
+                      ? t.playerName
+                      : "Unbooked"}
+                  </span>
+                </div>
+                <TicketCard
+                  ticket={t}
+                  calledNumbers={calledNumbers}
+                  currentNumber={currentNumber}
+                  winners={winners}
+                  showBookingBadge={bookingMode}
+                  isPending={!!getPendingRequest(t.id)}
+                  onBook={
+                    bookingMode && onBookingRequest
+                      ? () => setDialogTicket(t)
+                      : undefined
+                  }
+                  large={true}
+                  displaySize={ticketDisplaySize}
+                  minimized={ticketsMinimized}
+                />
+              </div>
+            ))}
+          </div>
+        ))}
+
+      {/* Normal (non-searchOnly) grid view */}
+      {!searchOnly &&
+        (filtered.length === 0 && search ? (
+          <div
+            className="text-center py-10 text-muted-foreground"
+            data-ocid="tickets.empty_state"
+          >
+            No tickets found for &ldquo;{search}&rdquo;
+          </div>
+        ) : (
+          <>
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-heading font-bold text-muted-foreground uppercase tracking-widest">
                 ✦ All Tickets
@@ -160,33 +244,34 @@ export default function TicketsGrid({
                 {filtered.length} / {tickets.length}
               </span>
             </div>
-          )}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3">
-            {filtered.slice(0, 200).map((t) => (
-              <TicketCard
-                key={t.id}
-                ticket={t}
-                calledNumbers={calledNumbers}
-                currentNumber={currentNumber}
-                winners={winners}
-                showBookingBadge={bookingMode}
-                isPending={!!getPendingRequest(t.id)}
-                onBook={
-                  bookingMode && onBookingRequest
-                    ? () => setDialogTicket(t)
-                    : undefined
-                }
-              />
-            ))}
-          </div>
-          {filtered.length > 200 && (
-            <p className="text-center text-xs text-muted-foreground mt-4">
-              Showing 200 of {filtered.length}. Use search to find specific
-              tickets.
-            </p>
-          )}
-        </>
-      )}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3">
+              {filtered.slice(0, 200).map((t) => (
+                <TicketCard
+                  key={t.id}
+                  ticket={t}
+                  calledNumbers={calledNumbers}
+                  currentNumber={currentNumber}
+                  winners={winners}
+                  showBookingBadge={bookingMode}
+                  isPending={!!getPendingRequest(t.id)}
+                  onBook={
+                    bookingMode && onBookingRequest
+                      ? () => setDialogTicket(t)
+                      : undefined
+                  }
+                  displaySize={ticketDisplaySize}
+                  minimized={ticketsMinimized}
+                />
+              ))}
+            </div>
+            {filtered.length > 200 && (
+              <p className="text-center text-xs text-muted-foreground mt-4">
+                Showing 200 of {filtered.length}. Use search to find specific
+                tickets.
+              </p>
+            )}
+          </>
+        ))}
 
       <Dialog
         open={!!dialogTicket}

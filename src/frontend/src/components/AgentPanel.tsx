@@ -1102,7 +1102,64 @@ export default function AgentPanel({
           </div>
         )}
 
-        {activeTab === "themes" && <ThemeManager />}
+        {activeTab === "themes" && (
+          <div className="space-y-6">
+            <ThemeManager />
+            {/* Ticket Display Settings */}
+            <div className="glass rounded-2xl p-5">
+              <h3 className="text-sm font-heading font-bold text-muted-foreground uppercase tracking-widest mb-4">
+                ✦ Ticket Display Settings
+              </h3>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wider">
+                    Ticket Size
+                  </Label>
+                  <div className="flex gap-2">
+                    {(["small", "medium", "large"] as const).map((size) => (
+                      <button
+                        key={size}
+                        type="button"
+                        onClick={() =>
+                          onUpdateSettings({ ticketDisplaySize: size })
+                        }
+                        data-ocid="theme.toggle"
+                        className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all capitalize ${state.ticketDisplaySize === size ? "bg-primary/20 text-primary border border-primary/40" : "glass text-muted-foreground border border-border/40 hover:border-primary/30"}`}
+                      >
+                        {size === "small" ? "S" : size === "medium" ? "M" : "L"}{" "}
+                        — {size}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex items-center justify-between py-2">
+                  <div>
+                    <Label className="text-xs text-muted-foreground uppercase tracking-wider">
+                      Minimize Tickets
+                    </Label>
+                    <p className="text-xs text-muted-foreground/60 mt-0.5">
+                      Show only ticket # and player name
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onUpdateSettings({
+                        ticketsMinimized: !state.ticketsMinimized,
+                      })
+                    }
+                    data-ocid="theme.toggle"
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${state.ticketsMinimized ? "bg-primary" : "bg-muted"}`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${state.ticketsMinimized ? "translate-x-6" : "translate-x-1"}`}
+                    />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -23,6 +23,8 @@ interface Props {
   onBook?: () => void;
   isPending?: boolean;
   large?: boolean;
+  displaySize?: "small" | "medium" | "large";
+  minimized?: boolean;
 }
 
 export default function TicketCard({
@@ -34,6 +36,8 @@ export default function TicketCard({
   onBook,
   isPending = false,
   large = false,
+  displaySize = "medium",
+  minimized = false,
 }: Props) {
   const calledSet = new Set(calledNumbers);
   const ticketWins = winners.filter((w) => w.ticketId === ticket.id);
@@ -43,8 +47,29 @@ export default function TicketCard({
   const ticketBg = "var(--theme-ticket-bg, #FFE135)";
   const isWinner = ticketWins.length > 0;
 
-  const cellH = large ? 44 : 22;
-  const fontSize = large ? 15 : 9;
+  // Compute effective size from displaySize prop (overrides `large` if provided)
+  const effectiveSize = large ? "large" : displaySize;
+
+  const cellH =
+    effectiveSize === "large" ? 44 : effectiveSize === "small" ? 16 : 22;
+  const fontSize =
+    effectiveSize === "large" ? 15 : effectiveSize === "small" ? 7 : 9;
+  const headerFontSize =
+    effectiveSize === "large" ? 11 : effectiveSize === "small" ? 6 : 8;
+  const playerFontSize =
+    effectiveSize === "large" ? 11 : effectiveSize === "small" ? 6.5 : 7.5;
+  const headerPadding =
+    effectiveSize === "large"
+      ? "6px 10px 4px"
+      : effectiveSize === "small"
+        ? "2px 4px 1px"
+        : "3px 6px 2px";
+  const playerPadding =
+    effectiveSize === "large"
+      ? "3px 8px 4px"
+      : effectiveSize === "small"
+        ? "1px 3px"
+        : "2px 4px";
 
   const headerSection = (
     <div
@@ -52,13 +77,13 @@ export default function TicketCard({
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        padding: large ? "6px 10px 4px" : "3px 6px 2px",
+        padding: headerPadding,
         borderBottom: "1px solid rgba(0,0,0,0.25)",
       }}
     >
       <span
         style={{
-          fontSize: large ? 11 : 8,
+          fontSize: headerFontSize,
           fontWeight: 700,
           color: "#444",
           letterSpacing: 0.5,
@@ -68,12 +93,16 @@ export default function TicketCard({
         Neon Tambola
       </span>
       <div
-        style={{ display: "flex", alignItems: "center", gap: large ? 8 : 4 }}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: effectiveSize === "large" ? 8 : 4,
+        }}
       >
         {isWinner && (
           <span
             style={{
-              fontSize: large ? 10 : 7,
+              fontSize: effectiveSize === "large" ? 10 : 7,
               fontWeight: 700,
               color: "#b45309",
             }}
@@ -83,7 +112,7 @@ export default function TicketCard({
         )}
         <span
           style={{
-            fontSize: large ? 11 : 8,
+            fontSize: headerFontSize,
             fontWeight: 800,
             color: "#222",
             fontFamily: "monospace",
@@ -99,14 +128,14 @@ export default function TicketCard({
     <div
       style={{
         textAlign: "center",
-        padding: large ? "3px 8px 4px" : "2px 4px",
-        borderBottom: "1px solid rgba(0,0,0,0.18)",
+        padding: playerPadding,
+        borderBottom: minimized ? undefined : "1px solid rgba(0,0,0,0.18)",
       }}
     >
       {showBookingBadge ? (
         <span
           style={{
-            fontSize: large ? 11 : 7.5,
+            fontSize: playerFontSize,
             fontWeight: 700,
             color: isPending ? "#b45309" : isBooked ? "#166534" : "#777",
           }}
@@ -116,7 +145,7 @@ export default function TicketCard({
       ) : (
         <span
           style={{
-            fontSize: large ? 11 : 7.5,
+            fontSize: playerFontSize,
             fontWeight: 600,
             color: "#555",
           }}
@@ -179,7 +208,7 @@ export default function TicketCard({
     </table>
   );
 
-  const winBadges = isWinner && large && (
+  const winBadges = isWinner && effectiveSize === "large" && (
     <div
       style={{
         padding: "4px 8px 6px",
@@ -208,16 +237,20 @@ export default function TicketCard({
   );
 
   const bookBtn = showBookingBadge && !isBooked && !isPending && onBook && (
-    <div style={{ padding: large ? "6px 8px 8px" : "3px 4px 4px" }}>
+    <div
+      style={{
+        padding: effectiveSize === "large" ? "6px 8px 8px" : "3px 4px 4px",
+      }}
+    >
       <button
         type="button"
         onClick={onBook}
         data-ocid="tickets.open_modal_button"
         style={{
           width: "100%",
-          fontSize: large ? 12 : 8,
+          fontSize: effectiveSize === "large" ? 12 : 8,
           fontWeight: 700,
-          padding: large ? "6px 0" : "3px 0",
+          padding: effectiveSize === "large" ? "6px 0" : "3px 0",
           borderRadius: 6,
           border: "1.5px solid rgba(0,0,0,0.3)",
           background: "rgba(0,0,0,0.08)",
@@ -246,7 +279,7 @@ export default function TicketCard({
     >
       {headerSection}
       {playerSection}
-      {grid}
+      {!minimized && grid}
       {winBadges}
       {bookBtn}
     </div>

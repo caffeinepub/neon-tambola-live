@@ -1,8 +1,9 @@
-import React from "react";
+import type React from "react";
 
 interface Props {
   calledNumbers: number[];
   currentNumber: number | null;
+  callBoardStyle?: React.CSSProperties;
 }
 
 const COL_LABELS = [
@@ -17,35 +18,66 @@ const COL_LABELS = [
   "80-90",
 ];
 
-export default function NumberBoard({ calledNumbers, currentNumber }: Props) {
+export default function NumberBoard({
+  calledNumbers,
+  currentNumber,
+  callBoardStyle,
+}: Props) {
   const calledSet = new Set(calledNumbers);
   const phrase = currentNumber ? `Single number, ${currentNumber}` : null;
 
+  // Recently called: last 5 numbers before current
+  const recentlyCalled = calledNumbers
+    .filter((n) => n !== currentNumber)
+    .slice(-5)
+    .reverse();
+
   return (
     <div className="w-full">
-      {/* Current Number Showcase */}
-      {currentNumber ? (
-        <div className="flex flex-col items-center justify-center mb-5 py-4 glass rounded-2xl border border-accent/30 shadow-neon-cyan relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-accent/5 via-transparent to-primary/5 pointer-events-none" />
-          <p className="text-[10px] font-mono font-bold uppercase tracking-[0.3em] text-accent/70 mb-1">
-            ✦ Just Called
-          </p>
-          <div className="text-7xl sm:text-8xl font-heading font-black text-accent neon-text-cyan animate-number-flash leading-none">
-            {currentNumber}
-          </div>
-          {phrase && (
-            <p className="mt-2 text-sm sm:text-base font-heading font-semibold text-foreground/80 text-center px-4">
-              {phrase}
+      {/* Unified Calling Display */}
+      <div
+        className="flex flex-col items-center justify-center mb-5 py-5 glass rounded-2xl border border-accent/30 shadow-neon-cyan relative overflow-hidden"
+        style={callBoardStyle}
+      >
+        <div className="absolute inset-0 bg-gradient-to-br from-accent/5 via-transparent to-primary/5 pointer-events-none" />
+
+        {currentNumber ? (
+          <>
+            <p className="text-[10px] font-mono font-bold uppercase tracking-[0.3em] text-accent/70 mb-1 relative z-10">
+              ✦ Just Called
             </p>
-          )}
-        </div>
-      ) : (
-        <div className="flex flex-col items-center justify-center mb-5 py-4 glass rounded-2xl border border-border/30">
-          <p className="text-sm text-muted-foreground font-mono">
+            <div className="text-7xl sm:text-8xl font-heading font-black text-accent neon-text-cyan animate-number-flash leading-none relative z-10">
+              {currentNumber}
+            </div>
+            {phrase && (
+              <p className="mt-2 text-sm sm:text-base font-heading font-semibold text-foreground/80 text-center px-4 relative z-10">
+                {phrase}
+              </p>
+            )}
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground font-mono relative z-10">
             Awaiting first number...
           </p>
-        </div>
-      )}
+        )}
+
+        {/* Recently called chips */}
+        {recentlyCalled.length > 0 && (
+          <div className="flex items-center gap-1.5 mt-3 flex-wrap justify-center px-4 relative z-10">
+            <span className="text-[9px] font-mono text-muted-foreground/60 uppercase tracking-widest mr-1">
+              Recent:
+            </span>
+            {recentlyCalled.map((n) => (
+              <span
+                key={n}
+                className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-full bg-primary/20 text-primary border border-primary/30"
+              >
+                {n}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
 
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-sm font-heading font-bold text-muted-foreground uppercase tracking-widest">
