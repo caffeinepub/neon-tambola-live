@@ -92,6 +92,36 @@ const NUMBER_WORDS: Record<number, string> = {
   90: "ninety",
 };
 
+// Single digit words for building "X and Y" format
+const DIGIT_WORDS: Record<number, string> = {
+  0: "zero",
+  1: "one",
+  2: "two",
+  3: "three",
+  4: "four",
+  5: "five",
+  6: "six",
+  7: "seven",
+  8: "eight",
+  9: "nine",
+};
+
+// Classic Tambola event phrases for special numbers
+const EVENT_PHRASES: Record<number, string> = {
+  1: "Kelly's eye",
+  7: "Lucky seven",
+  11: "Legs eleven",
+  21: "Key of the door",
+  22: "Two little ducks",
+  33: "Dirty Gertie",
+  44: "Droopy drawers",
+  55: "Snakes alive",
+  66: "Clickety click",
+  77: "Sunset strip",
+  88: "Two fat ladies",
+  90: "Top of the shop",
+};
+
 /**
  * Get male voices from the device.
  * Returns voices with keywords like "male", "david", "mark", or deep/male-sounding names.
@@ -147,27 +177,64 @@ export function playCallSound() {
 }
 
 /**
+ * Build the speech phrase for a number.
+ * - Single digit (1-9): "Single number, seven"
+ * - Two digit (10-90): "five and seven, fifty seven"
+ * - Special event numbers get a classic Tambola phrase prepended.
+ */
+function buildNumberPhrase(num: number): string {
+  const fullWord = NUMBER_WORDS[num] ?? `${num}`;
+  const eventPhrase = EVENT_PHRASES[num];
+
+  let core: string;
+  if (num >= 1 && num <= 9) {
+    core = `Single number, ${fullWord}`;
+  } else {
+    const tens = Math.floor(num / 10);
+    const ones = num % 10;
+    const tensWord = DIGIT_WORDS[tens];
+    const onesWord = DIGIT_WORDS[ones];
+    core = `${tensWord} and ${onesWord}, ${fullWord}`;
+  }
+
+  if (eventPhrase) {
+    return `${eventPhrase}, ${core}`;
+  }
+  return core;
+}
+
+/**
  * Speak a called number.
  * voiceMode: 'male' | 'female' (default: 'male')
- * Says "Single number X" exactly once.
+ * Format: "five and seven, fifty seven" or "Single number, seven"
+ * Event numbers get a classic Tambola phrase first.
+ * onEnd is called when speech finishes.
  */
 export function speakNumber(
   num: number,
   voiceName?: string,
   voiceMode?: string,
+  onEnd?: () => void,
 ) {
   try {
-    if (!window.speechSynthesis) return;
+    if (!window.speechSynthesis) {
+      onEnd?.();
+      return;
+    }
     window.speechSynthesis.cancel();
 
-    const word = NUMBER_WORDS[num] ?? `${num}`;
-    const phrase = `Single number, ${word}`;
+    const phrase = buildNumberPhrase(num);
 
     const utterance = new SpeechSynthesisUtterance(phrase);
     utterance.volume = 1.0;
     utterance.pitch = 1.0;
     utterance.rate = 0.9;
     utterance.lang = "en";
+
+    if (onEnd) {
+      utterance.onend = () => onEnd();
+      utterance.onerror = () => onEnd();
+    }
 
     // Pick voice based on mode
     const all = window.speechSynthesis.getVoices();
@@ -193,7 +260,9 @@ export function speakNumber(
     setTimeout(() => {
       window.speechSynthesis.speak(utterance);
     }, 350);
-  } catch {}
+  } catch {
+    onEnd?.();
+  }
 }
 
 export function speakWinner(

@@ -25,7 +25,6 @@ export function isValidTicket(grid: (number | null)[][]): boolean {
     if (row.filter((n) => n !== null).length !== 5) return false;
   }
   if (countTicketNumbers(grid) !== 15) return false;
-  // Every column must have at least 1 number
   for (let col = 0; col < 9; col++) {
     const hasNum = grid.some((row) => row[col] !== null);
     if (!hasNum) return false;
@@ -45,97 +44,199 @@ const COL_RANGES: [number, number][] = [
   [80, 90],
 ];
 
-function tryGenerateGrid(): (number | null)[][] | null {
-  // Every column gets at least 1. Pick 6 columns to get 2 numbers (3x1 + 6x2 = 15)
-  const colCounts = Array(9).fill(1);
-  const sixCols = shuffle([0, 1, 2, 3, 4, 5, 6, 7, 8]).slice(0, 6);
-  for (const c of sixCols) colCounts[c] = 2;
+// ─── Full-Sheet Strip Generation ─────────────────────────────────────────────
+// Each strip = 6 tickets that together cover ALL numbers 1–90 exactly once.
+// Each ticket is 5×3 (5 numbers per row, 3 rows, 15 numbers total).
+// Column column c gets all numbers in COL_RANGES[c] distributed across 6 tickets.
+//
+// Gale-Ryser derived "extras" matrix (which ticket slots get 2 numbers per col
+// instead of 1). Row sums = 6, col sums = [3,4,4,4,4,4,4,4,5].
+// This is shuffled per strip for variety.
+const BASE_EXTRAS: number[][] = [
+  [0, 1, 1, 1, 1, 1, 0, 0, 1],
+  [1, 1, 1, 0, 0, 0, 1, 1, 1],
+  [0, 0, 0, 1, 1, 1, 1, 1, 1],
+  [1, 1, 1, 1, 1, 1, 0, 0, 0],
+  [1, 1, 1, 0, 0, 0, 1, 1, 1],
+  [0, 0, 0, 1, 1, 1, 1, 1, 1],
+];
 
-  const slots: number[] = [];
-  for (let c = 0; c < 9; c++)
-    for (let k = 0; k < colCounts[c]; k++) slots.push(c);
+/**
+ * Returns true if the given column-index set for a row has 3+ consecutive blank cells.
+ * colsWithNums is a Set of column indices (0–8) that contain numbers.
+ */
+function rowHasConsecutiveBlanks(colsWithNums: Set<number>): boolean {
+  let consecutiveBlanks = 0;
+  for (let c = 0; c < 9; c++) {
+    if (colsWithNums.has(c)) {
+      consecutiveBlanks = 0;
+    } else {
+      consecutiveBlanks++;
+      if (consecutiveBlanks >= 3) return true;
+    }
+  }
+  return false;
+}
 
-  let assignment: number[] | null = null;
-  for (let att = 0; att < 500 && !assignment; att++) {
+/**
+ * Assign 15 column-slots to 3 rows (5 per row) with no duplicate columns
+ * in the same row, and no 3+ consecutive blanks in any row.
+ * Returns colRows mapping or null on failure.
+ */
+function assignRowsToSlots(slots: number[]): number[][] | null {
+  for (let attempt = 0; attempt < 1000; attempt++) {
     const s = shuffle([...slots]);
     const rows = [s.slice(0, 5), s.slice(5, 10), s.slice(10, 15)];
-    if (rows.every((r) => new Set(r).size === 5)) assignment = s;
-  }
-  if (!assignment) return null;
+    if (!rows.every((r) => new Set(r).size === 5)) continue;
 
+    // Check no 3+ consecutive blanks in any row
+    const valid = rows.every((rowCols) => {
+      const colSet = new Set(rowCols);
+      return !rowHasConsecutiveBlanks(colSet);
+    });
+    if (!valid) continue;
+
+    const colRows: number[][] = Array.from({ length: 9 }, () => []);
+    for (let ri = 0; ri < 3; ri++) {
+      for (const c of rows[ri]) colRows[c].push(ri);
+    }
+    return colRows;
+  }
+  return null;
+}
+
+/**
+ * Deterministic row assignment fallback using a greedy approach.
+ * Tries to avoid 3+ consecutive blanks when possible.
+ */
+function assignRowsFallback(colCounts: number[]): number[][] {
   const colRows: number[][] = Array.from({ length: 9 }, () => []);
-  for (let row = 0; row < 3; row++) {
-    const rowSlice = assignment.slice(row * 5, row * 5 + 5);
-    for (const col of rowSlice) colRows[col].push(row);
+  const rowBudget = [5, 5, 5];
+
+  // Build list of (col, slotIndex) in order
+  const allSlots: { col: number }[] = [];
+  for (let c = 0; c < 9; c++) {
+    for (let k = 0; k < colCounts[c]; k++) allSlots.push({ col: c });
   }
 
-  const grid: (number | null)[][] = Array.from({ length: 3 }, () =>
-    Array(9).fill(null),
+  // Track which row each col already occupies
+  const colUsedRows: Set<number>[] = Array.from({ length: 9 }, () => new Set());
+  // Track which cols are assigned to each row so far
+  const rowAssignedCols: Set<number>[] = Array.from(
+    { length: 3 },
+    () => new Set(),
   );
-  for (let col = 0; col < 9; col++) {
-    const [lo, hi] = COL_RANGES[col];
-    const range: number[] = [];
-    for (let n = lo; n <= hi; n++) range.push(n);
-    const picked = shuffle(range)
-      .slice(0, colRows[col].length)
-      .sort((a, b) => a - b);
-    const sortedRows = [...colRows[col]].sort((a, b) => a - b);
-    for (let i = 0; i < picked.length; i++)
-      grid[sortedRows[i]][col] = picked[i];
-  }
 
-  // Verify all columns have at least 1 number before accepting
-  for (let col = 0; col < 9; col++) {
-    if (!grid.some((row) => row[col] !== null)) return null;
+  for (const { col } of allSlots) {
+    // Find a row with budget, not yet used for this col, and preferably no 3+ consecutive blanks
+    let bestRow = -1;
+    for (let ri = 0; ri < 3; ri++) {
+      if (rowBudget[ri] <= 0 || colUsedRows[col].has(ri)) continue;
+      // Check if adding this col would cause 3+ consecutive blanks
+      const testCols = new Set(rowAssignedCols[ri]);
+      testCols.add(col);
+      if (!rowHasConsecutiveBlanks(testCols)) {
+        bestRow = ri;
+        break;
+      }
+      if (bestRow === -1) bestRow = ri; // fallback: use even if it causes blanks
+    }
+    if (bestRow !== -1) {
+      colRows[col].push(bestRow);
+      colUsedRows[col].add(bestRow);
+      rowBudget[bestRow]--;
+      rowAssignedCols[bestRow].add(col);
+    }
   }
-
-  return grid;
+  return colRows;
 }
 
-function fallbackGrid(): (number | null)[][] {
-  // Safe fixed pattern ensuring every column has at least 1 number:
-  // col0->rows[0,1], col1->rows[1,2], col2->rows[0,2], col3->rows[1,2],
-  // col4->rows[0,2], col5->rows[1], col6->rows[0,2], col7->rows[1], col8->rows[0]
-  const safePattern = [
-    [0, 2, 4, 6, 8], // row 0: cols 0,2,4,6,8
-    [0, 1, 3, 5, 7], // row 1: cols 0,1,3,5,7
-    [1, 2, 3, 4, 6], // row 2: cols 1,2,3,4,6
-  ];
-  const colRows: number[][] = Array.from({ length: 9 }, () => []);
-  for (let ri = 0; ri < 3; ri++)
-    for (const col of safePattern[ri]) colRows[col].push(ri);
+/**
+ * Generate one full-sheet strip: 6 tickets covering all 1–90 exactly once.
+ */
+function generateFullSheetStrip(stripIndex: number): Ticket[] {
+  // Shuffle ticket rows of the extras matrix for variety
+  const ticketPerm = shuffle([0, 1, 2, 3, 4, 5]);
+  const extraMatrix = ticketPerm.map((t) => BASE_EXTRAS[t]);
 
-  const grid: (number | null)[][] = Array.from({ length: 3 }, () =>
-    Array(9).fill(null),
+  // Assign numbers from each column to tickets
+  const ticketColNums: number[][][] = Array.from({ length: 6 }, () =>
+    Array.from({ length: 9 }, () => [] as number[]),
   );
-  for (let col = 0; col < 9; col++) {
-    const [lo, hi] = COL_RANGES[col];
-    const range: number[] = [];
-    for (let n = lo; n <= hi; n++) range.push(n);
-    const picked = shuffle(range)
-      .slice(0, colRows[col].length)
-      .sort((a, b) => a - b);
-    const sortedRows = [...colRows[col]].sort((a, b) => a - b);
-    for (let i = 0; i < picked.length; i++)
-      grid[sortedRows[i]][col] = picked[i];
+
+  for (let c = 0; c < 9; c++) {
+    const [lo, hi] = COL_RANGES[c];
+    const nums = shuffle(Array.from({ length: hi - lo + 1 }, (_, i) => lo + i));
+    let idx = 0;
+    for (let t = 0; t < 6; t++) {
+      const count = 1 + extraMatrix[t][c];
+      ticketColNums[t][c] = nums.slice(idx, idx + count).sort((a, b) => a - b);
+      idx += count;
+    }
   }
-  return grid;
+
+  const tickets: Ticket[] = [];
+
+  for (let t = 0; t < 6; t++) {
+    const colCounts = ticketColNums[t].map((nums) => nums.length);
+
+    // Build flat slot list
+    const slots: number[] = [];
+    for (let c = 0; c < 9; c++) {
+      for (let k = 0; k < colCounts[c]; k++) slots.push(c);
+    }
+
+    // Assign slots to rows
+    let colRows = assignRowsToSlots(slots);
+    if (!colRows) colRows = assignRowsFallback(colCounts);
+
+    // Build grid
+    const grid: (number | null)[][] = Array.from({ length: 3 }, () =>
+      Array(9).fill(null),
+    );
+    for (let c = 0; c < 9; c++) {
+      const sortedRows = [...colRows[c]].sort((a, b) => a - b);
+      for (let i = 0; i < ticketColNums[t][c].length; i++) {
+        grid[sortedRows[i]][c] = ticketColNums[t][c][i];
+      }
+    }
+
+    tickets.push({
+      id: stripIndex * 6 + t + 1,
+      playerName: "",
+      setIndex: stripIndex,
+      grid,
+    });
+  }
+
+  return tickets;
 }
 
-export function generateSingleTicket(id: number, setIndex = 0): Ticket {
-  for (let i = 0; i < 200; i++) {
-    const g = tryGenerateGrid();
-    if (g && isValidTicket(g))
-      return { id, playerName: `Player ${id}`, setIndex, grid: g };
-  }
-  const g = fallbackGrid();
-  return { id, playerName: `Player ${id}`, setIndex, grid: g };
-}
+// ─── Public API ───────────────────────────────────────────────────────────────
 
+/**
+ * Generate `count` tickets in groups of 6 (full sheets).
+ * Each group of 6 covers all numbers 1–90 exactly once.
+ */
 export function generateTickets(count: number): Ticket[] {
-  return Array.from({ length: count }, (_, i) =>
-    generateSingleTicket(i + 1, Math.floor(i / 6)),
-  );
+  const numStrips = Math.ceil(count / 6);
+  const all: Ticket[] = [];
+  for (let s = 0; s < numStrips; s++) {
+    all.push(...generateFullSheetStrip(s));
+  }
+  // Re-assign sequential IDs after slicing
+  return all.slice(0, count).map((t, i) => ({ ...t, id: i + 1 }));
+}
+
+/**
+ * Generate a single standalone ticket (not part of a full sheet).
+ * Used for one-off additions or repairs.
+ */
+export function generateSingleTicket(id: number, setIndex = 0): Ticket {
+  // Generate a mini-strip and return the first ticket with the correct id
+  const strip = generateFullSheetStrip(setIndex);
+  const t = strip[0];
+  return { ...t, id, setIndex };
 }
 
 export function getTicketNumbers(ticket: Ticket): number[] {
@@ -147,8 +248,8 @@ export function getRowNumbers(ticket: Ticket, row: number): number[] {
 }
 
 /**
- * Repair a ticket from storage. If it's invalid (including empty columns),
- * regenerate the grid while preserving playerName and id.
+ * Repair a ticket from storage. If it's invalid, regenerate the grid
+ * while preserving playerName and id.
  */
 export function repairTicket(ticket: Ticket): Ticket {
   if (isValidTicket(ticket.grid)) return ticket;
@@ -182,7 +283,6 @@ export function repairTicket(ticket: Ticket): Ticket {
     }
   }
 
-  // isValidTicket now checks column coverage too, so invalid = full regeneration
   if (isValidTicket(grid)) return { ...ticket, grid };
 
   // Full regeneration, preserve player info

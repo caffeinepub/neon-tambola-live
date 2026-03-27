@@ -27,8 +27,14 @@ import { type Winner, detectWins } from "../utils/winDetector";
 export function useGameState() {
   const [state, setState] = useState<GameState>(() => loadState());
   const [newWinners, setNewWinners] = useState<Winner[]>([]);
-  const autoCallRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const autoCallRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [autoCallEnabled, setAutoCallEnabled] = useState(false);
+  const autoCallEnabledRef = useRef(false);
+
+  // Keep ref in sync with state so callbacks can read current value
+  useEffect(() => {
+    autoCallEnabledRef.current = autoCallEnabled;
+  }, [autoCallEnabled]);
 
   const update = useCallback((updates: Partial<GameState>) => {
     setState((prev) => {
@@ -139,7 +145,7 @@ export function useGameState() {
   );
 
   const callNumber = useCallback(
-    (s: GameState): GameState | null => {
+    (s: GameState, onSpeechEnd?: () => void): GameState | null => {
       const uncalled: number[] = [];
       for (let n = 1; n <= 90; n++) {
         if (!s.calledNumbers.includes(n)) uncalled.push(n);
@@ -148,7 +154,7 @@ export function useGameState() {
       const num = uncalled[Math.floor(Math.random() * uncalled.length)];
       const calledNumbers = [...s.calledNumbers, num];
       playCallSound();
-      speakNumber(num, s.selectedVoice, s.voiceMode);
+      speakNumber(num, s.selectedVoice, s.voiceMode, onSpeechEnd);
       const newWins = detectWins(
         s.tickets,
         calledNumbers,
@@ -433,30 +439,55 @@ export function useGameState() {
     return () => clearInterval(interval);
   }, []);
 
-  // Auto call
+  // Auto call — speech-end chaining
   useEffect(() => {
-    if (autoCallRef.current) clearInterval(autoCallRef.current);
-    if (autoCallEnabled && state.phase === "active") {
-      autoCallRef.current = setInterval(() => {
+    // Clear any pending timeout on config change
+    if (autoCallRef.current) {
+      clearTimeout(autoCallRef.current);
+      autoCallRef.current = null;
+    }
+
+    if (!autoCallEnabled || state.phase !== "active") return;
+
+    // Schedules the next call after `delayMs` ms, then chains via onEnd
+    const scheduleCall = (delayMs: number) => {
+      autoCallRef.current = setTimeout(() => {
+        if (!autoCallEnabledRef.current) return;
         setState((prev) => {
           if (prev.phase !== "active") return prev;
-          const next = callNumber(prev);
+
+          const onSpeechEnd = () => {
+            if (!autoCallEnabledRef.current) return;
+            // After speech finishes, wait callSpeed seconds then call next
+            scheduleCall(prev.callSpeed * 1000);
+          };
+
+          const next = callNumber(prev, onSpeechEnd);
           if (!next) {
             setAutoCallEnabled(false);
             return prev;
           }
           const nw = next.winners.slice(prev.winners.length);
           setNewWinners(nw);
-          if (next.phase === "ended") setAutoCallEnabled(false);
+          if (next.phase === "ended") {
+            setAutoCallEnabled(false);
+          }
           saveState(next);
           return next;
         });
-      }, state.callSpeed * 1000);
-    }
-    return () => {
-      if (autoCallRef.current) clearInterval(autoCallRef.current);
+      }, delayMs);
     };
-  }, [autoCallEnabled, state.phase, state.callSpeed, callNumber]);
+
+    // First call: immediate (0 delay)
+    scheduleCall(0);
+
+    return () => {
+      if (autoCallRef.current) {
+        clearTimeout(autoCallRef.current);
+        autoCallRef.current = null;
+      }
+    };
+  }, [autoCallEnabled, state.phase, callNumber]);
 
   void ALL_PRIZES;
   void isValidTicket;
