@@ -251,7 +251,10 @@ export default function App() {
 
       {state.winners.length > 0 && (
         <div className="px-4 pt-3 max-w-6xl mx-auto w-full">
-          <WinnerMarquee winners={state.winners} />
+          <WinnerMarquee
+            winners={state.winners}
+            prizeNames={state.prizeNames}
+          />
         </div>
       )}
 
@@ -578,6 +581,7 @@ function PreviewPhase({ state }: { state: GameState }) {
           winners={state.winners}
           tickets={state.tickets}
           calledNumbers={state.calledNumbers}
+          prizeNames={state.prizeNames}
         />
       </div>
     </PhaseWrapper>
@@ -622,6 +626,7 @@ function ActivePhase({ state }: { state: GameState }) {
           winners={state.winners}
           tickets={state.tickets}
           calledNumbers={state.calledNumbers}
+          prizeNames={state.prizeNames}
         />
       </div>
     </PhaseWrapper>
@@ -647,6 +652,7 @@ function EndedPhase({ state }: { state: GameState }) {
             winners={state.winners}
             tickets={state.tickets}
             calledNumbers={state.calledNumbers}
+            prizeNames={state.prizeNames}
           />
           <TicketsGrid
             tickets={state.tickets}

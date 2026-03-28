@@ -6,6 +6,7 @@ interface Props {
   winners: Winner[];
   tickets: Ticket[];
   calledNumbers: number[];
+  prizeNames?: Record<string, string>;
   compact?: boolean;
 }
 
@@ -81,10 +82,16 @@ function MiniTicket({
   );
 }
 
-export function WinnerMarquee({ winners }: { winners: Winner[] }) {
+export function WinnerMarquee({
+  winners,
+  prizeNames = {},
+}: { winners: Winner[]; prizeNames?: Record<string, string> }) {
   if (winners.length === 0) return null;
   const text = winners
-    .map((w) => `🏆 ${w.playerName} — ${w.winType} (Ticket #${w.ticketId})`)
+    .map(
+      (w) =>
+        `🏆 ${w.playerName} — ${prizeNames[w.winType] ?? w.winType} (Ticket #${w.ticketId})`,
+    )
     .join("   •   ");
   return (
     <div className="w-full glass border-accent/20 overflow-hidden py-2.5 rounded-xl">
@@ -107,6 +114,7 @@ export default function WinnerBoard({
   winners,
   tickets,
   calledNumbers,
+  prizeNames = {},
   compact = false,
 }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -162,7 +170,7 @@ export default function WinnerBoard({
                   <span
                     className={`inline-block text-xs font-mono font-bold px-2 py-0.5 rounded-full border mb-2 ${colorClass}`}
                   >
-                    {w.winType}
+                    {prizeNames[w.winType] ?? w.winType}
                   </span>
                   <p className="font-heading font-semibold text-foreground truncate">
                     {w.playerName}

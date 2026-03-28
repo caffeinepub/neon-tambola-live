@@ -22,7 +22,11 @@ import {
   generateTickets,
   isValidTicket,
 } from "../utils/ticketGenerator";
-import { type Winner, detectWins } from "../utils/winDetector";
+import {
+  type Winner,
+  detectWins,
+  wouldCause4Winners,
+} from "../utils/winDetector";
 
 export function useGameState() {
   const [state, setState] = useState<GameState>(() => loadState());
@@ -151,7 +155,23 @@ export function useGameState() {
         if (!s.calledNumbers.includes(n)) uncalled.push(n);
       }
       if (uncalled.length === 0) return null;
-      const num = uncalled[Math.floor(Math.random() * uncalled.length)];
+      // Shuffle uncalled numbers
+      for (let i = uncalled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [uncalled[i], uncalled[j]] = [uncalled[j], uncalled[i]];
+      }
+      // Skip numbers that would cause 4+ simultaneous winners for any prize
+      const num = uncalled.find(
+        (n) =>
+          !wouldCause4Winners(
+            s.tickets,
+            s.calledNumbers,
+            s.winners,
+            n,
+            s.activePrizes,
+          ),
+      );
+      if (num === undefined) return null; // All remaining numbers cause 4+ winners — game ends
       const calledNumbers = [...s.calledNumbers, num];
       playCallSound();
       speakNumber(num, s.selectedVoice, s.voiceMode, onSpeechEnd);
@@ -272,6 +292,7 @@ export function useGameState() {
       gameName: state.gameName,
       ticketLimit: state.ticketLimit,
       activePrizes: state.activePrizes,
+      prizeNames: state.prizeNames,
       selectedVoice: state.selectedVoice,
     };
     setState(next);
@@ -281,6 +302,7 @@ export function useGameState() {
     state.gameName,
     state.ticketLimit,
     state.activePrizes,
+    state.prizeNames,
     state.selectedVoice,
   ]);
 

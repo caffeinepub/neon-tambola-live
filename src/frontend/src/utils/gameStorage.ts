@@ -18,6 +18,7 @@ export interface GameSettings {
   gameName: string;
   ticketLimit: number;
   activePrizes: string[];
+  prizeNames: Record<string, string>;
   selectedVoice: string;
   voiceMode: string;
   startTime: string | null;
@@ -39,6 +40,7 @@ export interface GameState {
   gameName: string;
   ticketLimit: number;
   activePrizes: string[];
+  prizeNames: Record<string, string>;
   selectedVoice: string;
   voiceMode: string;
   isPublished: boolean;
@@ -47,7 +49,7 @@ export interface GameState {
   ticketsMinimized: boolean;
 }
 
-const KEY = "tambola_game_state_v4";
+const KEY = "tambola_game_state_v5";
 
 export const ALL_PRIZES = [
   "Early 5",
@@ -56,6 +58,14 @@ export const ALL_PRIZES = [
   "Bottom Line",
   "Full House",
 ];
+
+export const DEFAULT_PRIZE_NAMES: Record<string, string> = {
+  "Early 5": "Early 5",
+  "Top Line": "Top Line",
+  "Middle Line": "Middle Line",
+  "Bottom Line": "Bottom Line",
+  "Full House": "Full House",
+};
 
 export const defaultState: GameState = {
   phase: "idle",
@@ -70,6 +80,7 @@ export const defaultState: GameState = {
   gameName: "Neon Tambola Live",
   ticketLimit: 100,
   activePrizes: [...ALL_PRIZES],
+  prizeNames: { ...DEFAULT_PRIZE_NAMES },
   selectedVoice: "",
   voiceMode: "male",
   isPublished: false,
@@ -84,6 +95,11 @@ export function loadState(): GameState {
     if (raw) {
       const parsed = JSON.parse(raw) as GameState;
       const state = { ...defaultState, ...parsed };
+      // Ensure prizeNames has all defaults
+      state.prizeNames = {
+        ...DEFAULT_PRIZE_NAMES,
+        ...(parsed.prizeNames ?? {}),
+      };
       // Repair tickets
       state.tickets = state.tickets.map((t) => {
         if (!isValidTicket(t.grid)) {

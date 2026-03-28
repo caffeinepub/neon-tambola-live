@@ -123,6 +123,9 @@ export default function AgentPanel({
   const [localName, setLocalName] = useState(state.gameName);
   const [localLimit, setLocalLimit] = useState(state.ticketLimit);
   const [localPrizes, setLocalPrizes] = useState<string[]>(state.activePrizes);
+  const [localPrizeNames, setLocalPrizeNames] = useState<
+    Record<string, string>
+  >(state.prizeNames ?? {});
   const [localVoice] = useState(state.selectedVoice);
   const [localVoiceMode, setLocalVoiceMode] = useState(
     state.voiceMode ?? "auto",
@@ -151,6 +154,7 @@ export default function AgentPanel({
       gameName: localName,
       ticketLimit: localLimit,
       activePrizes: localPrizes,
+      prizeNames: localPrizeNames,
       selectedVoice: localVoice,
       voiceMode: localVoiceMode,
       previewDuration: localPreviewDuration,
@@ -389,27 +393,39 @@ export default function AgentPanel({
               <h3 className="text-xs font-mono font-bold text-primary uppercase tracking-widest mb-4">
                 Active Prizes
               </h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div className="space-y-3">
                 {ALL_PRIZES.map((prize) => (
-                  <div key={prize} className="flex items-center gap-2">
+                  <div key={prize} className="flex items-center gap-3">
                     <Checkbox
                       id={`prize-${prize}`}
                       checked={localPrizes.includes(prize)}
                       onCheckedChange={() => togglePrize(prize)}
                       data-ocid={`setup.${prize.toLowerCase().replace(/ /g, "_")}.checkbox`}
                     />
-                    <Label
-                      htmlFor={`prize-${prize}`}
-                      className="text-sm text-foreground cursor-pointer"
-                    >
-                      {prize}
-                    </Label>
+                    <div className="flex-1 flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={localPrizeNames[prize] ?? prize}
+                        onChange={(e) =>
+                          setLocalPrizeNames((prev) => ({
+                            ...prev,
+                            [prize]: e.target.value,
+                          }))
+                        }
+                        placeholder={prize}
+                        className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                        data-ocid={`setup.${prize.toLowerCase().replace(/ /g, "_")}.name_input`}
+                      />
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">
+                        ({prize})
+                      </span>
+                    </div>
                   </div>
                 ))}
               </div>
               <p className="text-xs text-muted-foreground mt-3">
-                Only selected prizes will be tracked and announced during the
-                game.
+                Check to enable a prize. Edit the name to customise how it
+                appears (e.g. "1st Houseful").
               </p>
             </div>
 
@@ -1082,7 +1098,7 @@ export default function AgentPanel({
                         data-ocid={`winners.row.${idx + 1}`}
                       >
                         <td className="py-2.5 text-accent font-mono font-bold">
-                          {w.winType}
+                          {state.prizeNames?.[w.winType] ?? w.winType}
                         </td>
                         <td className="py-2.5 text-foreground">
                           {w.playerName}
